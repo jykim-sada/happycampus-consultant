@@ -1748,11 +1748,26 @@ tr:hover td{background:#f0faf9}
     <div class="modal-sub">출근·퇴근 시간만 수정합니다<br>컨설팅·컨설팅외 시간은 각 시간 옆 보고서에서 수정하세요</div>
     <input type="hidden" id="editRowIndex">
     <div class="form-group" style="margin-bottom:12px"><label class="form-label">활동 일자</label><input type="text" id="editDate" class="form-control" readonly></div>
-    <div class="form-row-2" style="margin-bottom:20px">
+    <div class="form-row-2" style="margin-bottom:12px">
       <div class="form-group"><label class="form-label">출근</label><input type="time" id="editClockIn" class="form-control"></div>
       <div class="form-group"><label class="form-label">퇴근</label><input type="time" id="editClockOut" class="form-control"></div>
     </div>
-    <button class="modal-btn" onclick="doUpdateRecord()">수정 저장</button>
+    <div class="form-group" style="margin-bottom:20px">
+      <label class="form-label">📷 출퇴근 사진 <span style="font-size:11px;color:var(--muted);font-weight:400">(없을 때만 추가하면 됩니다)</span></label>
+      <div class="photo-upload-wrap">
+        <div>
+          <div class="photo-box" onclick="triggerEditPhoto('editClockInPhoto')"><i class="fa-solid fa-camera"></i><img id="editPrevClockIn" class="photo-preview" alt="출근"><div class="pb-label" id="editLabelClockIn">출근 사진</div></div>
+          <button class="photo-clear" id="editClearClockIn" onclick="clearEditPhoto('clockIn')">✕ 삭제</button>
+        </div>
+        <div>
+          <div class="photo-box" onclick="triggerEditPhoto('editClockOutPhoto')"><i class="fa-solid fa-camera"></i><img id="editPrevClockOut" class="photo-preview" alt="퇴근"><div class="pb-label" id="editLabelClockOut">퇴근 사진</div></div>
+          <button class="photo-clear" id="editClearClockOut" onclick="clearEditPhoto('clockOut')">✕ 삭제</button>
+        </div>
+      </div>
+      <input type="file" id="editClockInPhoto" accept="image/*" style="display:none" onchange="onEditPhotoSelect(event,'clockIn')">
+      <input type="file" id="editClockOutPhoto" accept="image/*" style="display:none" onchange="onEditPhotoSelect(event,'clockOut')">
+    </div>
+    <button class="modal-btn" id="editSaveBtn" onclick="doUpdateRecord()">수정 저장</button>
   </div>
 </div>
 
@@ -4681,28 +4696,71 @@ function saveClientDetail(rowIndex){
 }
 
 // ── 수정 ──────────────────────────────────────────
+const editPhotoFiles={clockIn:null,clockOut:null};
+function resetEditPhotoUI(){
+  editPhotoFiles.clockIn=null; editPhotoFiles.clockOut=null;
+  ['ClockIn','ClockOut'].forEach(cap=>{
+    document.getElementById('edit'+cap+'Photo').value='';
+    const prev=document.getElementById('editPrev'+cap); if(prev){prev.src='';prev.style.display='none';}
+    const clr=document.getElementById('editClear'+cap); if(clr) clr.style.display='none';
+  });
+}
+function triggerEditPhoto(id){document.getElementById(id).click();}
+function onEditPhotoSelect(e,key){
+  const file=e.target.files[0];if(!file)return;
+  editPhotoFiles[key]=file;
+  const cap=key.charAt(0).toUpperCase()+key.slice(1);
+  const r=new FileReader();r.onload=ev=>{
+    const prev=document.getElementById('editPrev'+cap);
+    prev.src=ev.target.result;prev.style.display='block';
+    document.getElementById('editClear'+cap).style.display='block';
+  };r.readAsDataURL(file);
+}
+function clearEditPhoto(key){
+  editPhotoFiles[key]=null;
+  const cap=key.charAt(0).toUpperCase()+key.slice(1);
+  document.getElementById('edit'+cap+'Photo').value='';
+  const prev=document.getElementById('editPrev'+cap);prev.src='';prev.style.display='none';
+  document.getElementById('editClear'+cap).style.display='none';
+}
+
 function openEdit(r){
   document.getElementById('editRowIndex').value=r.rowIndex;
   document.getElementById('editDate').value=r.activityDate;
   document.getElementById('editClockIn').value=r.clockIn||'';
   document.getElementById('editClockOut').value=r.clockOut||'';
+  resetEditPhotoUI();
+  document.getElementById('editLabelClockIn').textContent = r.clockInPhoto ? '출근 사진 (등록됨 — 다시 찍으면 교체)' : '출근 사진 (없음)';
+  document.getElementById('editLabelClockOut').textContent = r.clockOutPhoto ? '퇴근 사진 (등록됨 — 다시 찍으면 교체)' : '퇴근 사진 (없음)';
   refreshTimeWidgets();
   openModal('editModal');
 }
-function doUpdateRecord(){
+async function doUpdateRecord(){
   const rowIndex=parseInt(document.getElementById('editRowIndex').value);
-  // 출퇴근만 전송 → 컨설팅/컨설팅외 시간은 서버에서 기존 값 유지
+  const btn=document.getElementById('editSaveBtn');
+  if(btn.disabled) return;
+  btn.disabled=true; const origHtml=btn.innerHTML; btn.innerHTML='<div class="loader"></div> 저장 중...';
+  let clockInPhoto='', clockOutPhoto='';
+  if(editPhotoFiles.clockIn)  clockInPhoto =await uploadPhoto(editPhotoFiles.clockIn,'clockIn');
+  if(editPhotoFiles.clockOut) clockOutPhoto=await uploadPhoto(editPhotoFiles.clockOut,'clockOut');
+  // 출퇴근 시간 + (새로 고른 경우만) 사진 전송 → 컨설팅/컨설팅외 시간은 서버에서 기존 값 유지
   const data={
     consultantName:currentUser,
     activityDate:document.getElementById('editDate').value,
     clockIn:document.getElementById('editClockIn').value,
-    clockOut:document.getElementById('editClockOut').value
+    clockOut:document.getElementById('editClockOut').value,
+    clockInPhoto, clockOutPhoto
   };
   google.script.run
     .withSuccessHandler(res=>{
+      btn.disabled=false; btn.innerHTML=origHtml;
       closeModal('editModal');
       if(res.success){showToast('✅ 수정되었습니다.','success');refreshMyPanel();}
       else showToast('수정 실패: '+res.error,'error');
+    })
+    .withFailureHandler(err=>{
+      btn.disabled=false; btn.innerHTML=origHtml;
+      showToast('수정 실패: '+err.message,'error');
     })
     .updateRecord(rowIndex,data);
 }
@@ -5204,18 +5262,33 @@ function checkMissingItemsOnLogin(){
     .getMissingReportsSummary(currentUser);
 }
 
-const _MISS_TYPE_LABEL={consult:'컨설팅',other:'컨설팅 외'};
+const _MISS_TYPE_LABEL={consult:'컨설팅 보고서',other:'컨설팅외 보고서',clockInPhoto:'출근 사진',clockOutPhoto:'퇴근 사진'};
+const _MISS_IS_PHOTO={clockInPhoto:true,clockOutPhoto:true};
 function showMissingItemsModal(list){
   const subEl=document.getElementById('missingItemsSub');
-  if(subEl) subEl.textContent='총 '+list.length+'건의 보고서가 비어 있습니다. 확인하고 작성해 주세요.';
+  if(subEl){
+    const typeOf=m=>m.type||m.category;
+    const cIn = list.filter(m=>typeOf(m)==='clockInPhoto').length;
+    const cOut= list.filter(m=>typeOf(m)==='clockOutPhoto').length;
+    const rpt = list.filter(m=>typeOf(m)==='consult'||typeOf(m)==='other').length;
+    const parts=[];
+    if(cIn)  parts.push('출근 사진 '+cIn+'건');
+    if(cOut) parts.push('퇴근 사진 '+cOut+'건');
+    if(rpt)  parts.push('보고서 '+rpt+'건');
+    subEl.textContent = parts.join(', ')+'의 내용이 없습니다. 확인하시고 작성해 주세요.';
+  }
   const shown=list.slice(0,8);
   const body=document.getElementById('missingItemsBody');
   if(body){
     body.innerHTML = shown.map(m=>{
-      const label=_MISS_TYPE_LABEL[m.category||m.type]||(m.category||m.type);
+      const type=m.type||m.category;
+      const label=_MISS_TYPE_LABEL[type]||type;
+      const action=_MISS_IS_PHOTO[type]
+        ? 'goFixPhoto('+m.rowIndex+',\''+type+'\')'
+        : 'goWriteMissing(\''+type+'\',\''+m.date+'\',\''+m.time+'\')';
       return '<div style="padding:.6rem .8rem;border:1px solid #ffcc80;background:#fff8e1;border-radius:10px;margin-bottom:.5rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">'
         +'<span style="flex:1;font-size:.85rem"><b>'+m.date+'</b> · '+label+' ('+m.time+')</span>'
-        +'<button type="button" class="modal-btn" style="padding:.4rem .9rem;font-size:.8rem;width:auto" onclick="goWriteMissing(\''+(m.type||m.category)+'\',\''+m.date+'\',\''+m.time+'\')">작성하기</button>'
+        +'<button type="button" class="modal-btn" style="padding:.4rem .9rem;font-size:.8rem;width:auto" onclick="'+action+'">작성하기</button>'
         +'</div>';
     }).join('') + (list.length>shown.length ? '<div style="text-align:center;color:#888;font-size:.8rem;margin-top:.4rem">외 '+(list.length-shown.length)+'건 더 있습니다</div>' : '');
   }
@@ -5226,6 +5299,23 @@ function goWriteMissing(type,date,time){
   closeModal('missingItemsModal');
   if(type==='consult') writeRpt(date,time,'');
   else writeAct(date,time,'');
+}
+
+function goFixPhoto(rowIndex,type){
+  closeModal('missingItemsModal');
+  google.script.run
+    .withSuccessHandler(res=>{
+      if(res && res.success){
+        switchTab('my');
+        openEdit(res.record);
+        const label=type==='clockInPhoto'?'출근':'퇴근';
+        showToast(label+' 사진을 추가해 주세요.','success');
+      } else {
+        showToast('기존 기록을 불러오지 못했습니다.','error');
+      }
+    })
+    .withFailureHandler(()=>showToast('기존 기록을 불러오지 못했습니다.','error'))
+    .getRecordByIndex(rowIndex, currentUser);
 }
 
 function resetForm(){
