@@ -1756,6 +1756,28 @@ tr:hover td{background:#f0faf9}
   </div>
 </div>
 
+<!-- 저장 전 중복 의심 경고 모달 -->
+<div class="modal-overlay" id="dupWarningModal">
+  <div class="modal-box" style="max-width:480px;max-height:90vh;overflow-y:auto">
+    <button class="modal-close" onclick="closeModal('dupWarningModal')">✕</button>
+    <div class="modal-title">⚠️ 이미 작성된 기록이 있어요</div>
+    <div class="modal-sub">같은 날짜·비슷한 시간에 이미 저장된 기록이 있습니다. 기존 기록을 열어서 수정·보완하시겠어요?</div>
+    <div id="dupWarningBody" style="margin:14px 0"></div>
+    <button class="modal-btn" style="background:#9e9e9e" onclick="forceSubmitAnyway()">그래도 별개 활동으로 새로 저장</button>
+  </div>
+</div>
+
+<!-- 로그인 시 미작성 보고서 안내 모달 -->
+<div class="modal-overlay" id="missingItemsModal">
+  <div class="modal-box" style="max-width:480px;max-height:85vh;overflow-y:auto">
+    <button class="modal-close" onclick="closeModal('missingItemsModal')">✕</button>
+    <div class="modal-title">⚠️ 아직 작성 안 된 보고서가 있어요</div>
+    <div class="modal-sub" id="missingItemsSub"></div>
+    <div id="missingItemsBody" style="margin:10px 0"></div>
+    <button class="modal-btn" style="background:#9e9e9e" onclick="closeModal('missingItemsModal')">나중에 할게요</button>
+  </div>
+</div>
+
 <script>
 // ── 전역 상태 ──────────────────────────────────────
 let allAdminRecords=[], selectedFile=null, calYear, calMonth;
@@ -4124,6 +4146,8 @@ function applyLogin(){
     document.getElementById('myLoginPrompt').style.display='none';
     document.getElementById('myContent').style.display='';
     document.getElementById('myBannerName').textContent=currentUser;
+    // 미작성 보고서 확인
+    checkMissingItemsOnLogin();
   }
   if(currentRole==='admin'){
     const tabBar=document.getElementById('tabBar');
@@ -5048,10 +5072,29 @@ async function submitForm(){
   if(!date||!name||!camp){showToast('활동일자, 컨설턴트명, 활동지역은 필수입니다.','error');return;}
   const btn=document.getElementById('submitBtn');
   if(btn.disabled) return;
-  btn.disabled=true;btn.innerHTML='<div class="loader"></div> 저장 중...';
 
   const consultBlocks=collectTimeBlocks('consult');
   const otherBlocks=collectTimeBlocks('other');
+  const clockInVal=document.getElementById('clockIn').value;
+  const clockOutVal=document.getElementById('clockOut').value;
+
+  // 저장 전, 같은 날짜·비슷한 시간에 이미 저장된 기록이 있는지 확인 ('그래도 저장'으로 강제 진행 시 건너뜀)
+  if(!window.__forceSubmitDup){
+    const items=[];
+    if(clockInVal||clockOutVal) items.push({category:'clock', start:clockInVal||clockOutVal});
+    consultBlocks.forEach(b=>{ if(b.start) items.push({category:'consult', start:b.start}); });
+    otherBlocks.forEach(b=>{ if(b.start) items.push({category:'other', start:b.start}); });
+    if(items.length){
+      const origHtml=btn.innerHTML;
+      btn.disabled=true; btn.innerHTML='<div class="loader"></div> 확인 중...';
+      const matches=await checkDuplicatesBeforeSubmit(date,name,items);
+      btn.disabled=false; btn.innerHTML=origHtml;
+      if(matches && matches.length){ showDuplicateWarning(matches); return; }
+    }
+  }
+  window.__forceSubmitDup=false;
+
+  btn.disabled=true;btn.innerHTML='<div class="loader"></div> 저장 중...';
 
   // 사진 업로드 (대표 기록에만)
   let clockInPhoto='', clockOutPhoto='';
@@ -5092,6 +5135,97 @@ async function submitForm(){
       .saveRecord(records[i]);
   };
   saveOne(0);
+}
+
+// ── 저장 전 중복 확인 ──────────────────────────────
+function checkDuplicatesBeforeSubmit(date,name,items){
+  return new Promise(res=>{
+    google.script.run
+      .withSuccessHandler(r=>res(r&&r.success?r.matches:[]))
+      .withFailureHandler(()=>res([]))
+      .checkSimilarActivities(name,date,items);
+  });
+}
+
+const _DUP_CAT_LABEL={clock:'출퇴근',consult:'컨설팅',other:'컨설팅 외'};
+function showDuplicateWarning(matches){
+  const box=document.getElementById('dupWarningBody');
+  if(box){
+    box.innerHTML = matches.map(m=>{
+      const label=_DUP_CAT_LABEL[m.category]||m.category;
+      const timeTxt = m.category==='clock'
+        ? [m.clockIn?('출근 '+m.clockIn):'', m.clockOut?('퇴근 '+m.clockOut):''].filter(Boolean).join(' / ')
+        : (m.start+'~'+(m.end||''));
+      return '<div style="padding:.7rem;border:1px solid #ffcc80;background:#fff8e1;border-radius:10px;margin-bottom:.6rem">'
+        +'<b>'+label+'</b> 기록이 이미 있어요 <span style="color:#666">('+timeTxt+')</span>'
+        +'<div style="margin-top:.5rem">'
+        +'<button type="button" class="modal-btn" style="padding:.5rem 1rem;font-size:.85rem;width:auto" onclick="goEditExisting('+m.rowIndex+',\''+m.category+'\')">기존 기록으로 이동</button>'
+        +'</div></div>';
+    }).join('');
+  }
+  openModal('dupWarningModal');
+}
+
+function forceSubmitAnyway(){
+  closeModal('dupWarningModal');
+  window.__forceSubmitDup=true;
+  submitForm();
+}
+
+function goEditExisting(rowIndex,category){
+  closeModal('dupWarningModal');
+  google.script.run
+    .withSuccessHandler(res=>{
+      if(res && res.success){
+        switchTab('my');
+        if(category==='clock'){
+          openEdit(res.record);
+        } else {
+          showToast('"내 기록" 탭의 '+res.record.activityDate+' 기록을 확인해 주세요. 컨설팅/컨설팅외 시각을 고치려면 삭제 후 다시 입력하시면 됩니다.','success');
+        }
+      } else {
+        showToast('기존 기록을 불러오지 못했습니다.','error');
+      }
+    })
+    .withFailureHandler(()=>showToast('기존 기록을 불러오지 못했습니다.','error'))
+    .getRecordByIndex(rowIndex, currentUser);
+}
+
+// ── 로그인 시 미작성 보고서 안내 ────────────────────
+function checkMissingItemsOnLogin(){
+  if(!currentUser) return;
+  google.script.run
+    .withSuccessHandler(rawRes=>{
+      const res=typeof rawRes==='string'?JSON.parse(rawRes):rawRes;
+      if(!res||!res.success||!res.missing||!res.missing.length) return;
+      showMissingItemsModal(res.missing);
+    })
+    .withFailureHandler(()=>{})
+    .getMissingReportsSummary(currentUser);
+}
+
+const _MISS_TYPE_LABEL={consult:'컨설팅',other:'컨설팅 외'};
+function showMissingItemsModal(list){
+  const subEl=document.getElementById('missingItemsSub');
+  if(subEl) subEl.textContent='총 '+list.length+'건의 보고서가 비어 있습니다. 확인하고 작성해 주세요.';
+  const shown=list.slice(0,8);
+  const body=document.getElementById('missingItemsBody');
+  if(body){
+    body.innerHTML = shown.map(m=>{
+      const label=_MISS_TYPE_LABEL[m.category||m.type]||(m.category||m.type);
+      return '<div style="padding:.6rem .8rem;border:1px solid #ffcc80;background:#fff8e1;border-radius:10px;margin-bottom:.5rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">'
+        +'<span style="flex:1;font-size:.85rem"><b>'+m.date+'</b> · '+label+' ('+m.time+')</span>'
+        +'<button type="button" class="modal-btn" style="padding:.4rem .9rem;font-size:.8rem;width:auto" onclick="goWriteMissing(\''+(m.type||m.category)+'\',\''+m.date+'\',\''+m.time+'\')">작성하기</button>'
+        +'</div>';
+    }).join('') + (list.length>shown.length ? '<div style="text-align:center;color:#888;font-size:.8rem;margin-top:.4rem">외 '+(list.length-shown.length)+'건 더 있습니다</div>' : '');
+  }
+  openModal('missingItemsModal');
+}
+
+function goWriteMissing(type,date,time){
+  closeModal('missingItemsModal');
+  if(type==='consult') writeRpt(date,time,'');
+  else writeAct(date,time,'');
 }
 
 function resetForm(){
