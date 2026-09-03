@@ -1465,12 +1465,16 @@ tr:hover td{background:#f0faf9}
           <div style="margin-bottom:0.7rem">
             <div class="quick-period-label">📅 기간 단위 선택</div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.4rem">
-              <button class="resv-flt-btn active" id="rptPeriodBtn-month" data-rptperiod="month">월별</button>
+              <button class="resv-flt-btn active" id="rptPeriodBtn-all" data-rptperiod="all">전체</button>
+              <button class="resv-flt-btn" id="rptPeriodBtn-month" data-rptperiod="month">월별</button>
               <button class="resv-flt-btn" id="rptPeriodBtn-week" data-rptperiod="week">주별</button>
               <button class="resv-flt-btn" id="rptPeriodBtn-day" data-rptperiod="day">일별</button>
             </div>
           </div>
-          <div id="rptStatModeMonth" style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center">
+          <div id="rptStatModeAll">
+            <div class="info" style="margin:0"><i class="fa-solid fa-circle-info"></i><p>전체 기간 데이터를 조회합니다</p></div>
+          </div>
+          <div id="rptStatModeMonth" style="display:none;gap:0.6rem;flex-wrap:wrap;align-items:center">
             <select id="rptStatYear" class="form-control" style="flex:1;height:2.6rem;font-size:0.9rem"></select>
             <select id="rptStatMonth" class="form-control" style="flex:1;height:2.6rem;font-size:0.9rem">
               <option value="">전체(연간)</option>
@@ -1575,17 +1579,53 @@ tr:hover td{background:#f0faf9}
       <div class="card">
         <div class="card-title"><i class="fa-solid fa-file-lines"></i><span class="tab-label">활동 보고서</span> 통계</div>
         <div class="filter-stack" style="margin-bottom:1rem">
-          <div class="form-row-2">
-            <div class="form-group">
-              <label class="form-label">기간 (시작)</label>
-              <input type="date" id="actStatFrom" class="form-control">
-            </div>
-            <div class="form-group">
-              <label class="form-label">기간 (종료)</label>
-              <input type="date" id="actStatTo" class="form-control">
+          <div style="margin-bottom:0.7rem">
+            <div class="quick-period-label">📅 기간 단위 선택</div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.4rem">
+              <button class="resv-flt-btn active" id="actPeriodBtn-all" data-actperiod="all">전체</button>
+              <button class="resv-flt-btn" id="actPeriodBtn-month" data-actperiod="month">월별</button>
+              <button class="resv-flt-btn" id="actPeriodBtn-week" data-actperiod="week">주별</button>
+              <button class="resv-flt-btn" id="actPeriodBtn-day" data-actperiod="day">일별</button>
+              <button class="resv-flt-btn" id="actPeriodBtn-range" data-actperiod="range">기간선택</button>
             </div>
           </div>
-          <div class="form-group">
+          <div id="actStatModeAll">
+            <div class="info" style="margin:0"><i class="fa-solid fa-circle-info"></i><p>전체 기간 데이터를 조회합니다</p></div>
+          </div>
+          <div id="actStatModeMonth" style="display:none;gap:0.6rem;flex-wrap:wrap;align-items:center">
+            <select id="actStatYear" class="form-control" style="flex:1;height:2.6rem;font-size:0.9rem"></select>
+            <select id="actStatMonth" class="form-control" style="flex:1;height:2.6rem;font-size:0.9rem">
+              <option value="">전체(연간)</option>
+              <option value="01">1월</option><option value="02">2월</option><option value="03">3월</option>
+              <option value="04">4월</option><option value="05">5월</option><option value="06">6월</option>
+              <option value="07">7월</option><option value="08">8월</option><option value="09">9월</option>
+              <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+            </select>
+          </div>
+          <div id="actStatModeWeek" style="display:none;gap:0.6rem;flex-wrap:wrap;align-items:center">
+            <input type="date" id="actStatWeekFrom" class="form-control" style="flex:1;height:2.6rem">
+            <span style="font-weight:700;color:var(--muted)">~</span>
+            <input type="date" id="actStatWeekTo" class="form-control" style="flex:1;height:2.6rem">
+            <button class="btn-resv-load" data-actweekrange="-1" style="flex-shrink:0">◀ 전주</button>
+            <button class="btn-resv-load" data-actweekrange="0" style="flex-shrink:0">이번주</button>
+            <button class="btn-resv-load" data-actweekrange="1" style="flex-shrink:0">다음주 ▶</button>
+          </div>
+          <div id="actStatModeDay" style="display:none;gap:0.6rem;flex-wrap:wrap;align-items:center">
+            <input type="date" id="actStatDay" class="form-control" style="flex:1;height:2.6rem">
+          </div>
+          <div id="actStatModeRange" style="display:none">
+            <div class="form-row-2">
+              <div class="form-group">
+                <label class="form-label">기간 (시작)</label>
+                <input type="date" id="actStatFrom" class="form-control">
+              </div>
+              <div class="form-group">
+                <label class="form-label">기간 (종료)</label>
+                <input type="date" id="actStatTo" class="form-control">
+              </div>
+            </div>
+          </div>
+          <div class="form-group" style="margin-top:0.6rem">
             <label class="form-label">컨설턴트</label>
             <select id="actStatConsultant" class="form-control"><option value="">전체</option></select>
           </div>
@@ -1705,7 +1745,7 @@ tr:hover td{background:#f0faf9}
   <div class="modal-box" style="max-width:480px;max-height:90vh;overflow-y:auto">
     <button class="modal-close" onclick="closeModal('editModal')">✕</button>
     <div class="modal-title">출퇴근 시간 수정</div>
-    <div class="modal-sub">출근·퇴근 시간만 수정합니다 (작성 7일 이내)<br>컨설팅·컨설팅외 시간은 각 시간 옆 보고서에서 수정하세요</div>
+    <div class="modal-sub">출근·퇴근 시간만 수정합니다<br>컨설팅·컨설팅외 시간은 각 시간 옆 보고서에서 수정하세요</div>
     <input type="hidden" id="editRowIndex">
     <div class="form-group" style="margin-bottom:12px"><label class="form-label">활동 일자</label><input type="text" id="editDate" class="form-control" readonly></div>
     <div class="form-row-2" style="margin-bottom:20px">
@@ -2511,9 +2551,69 @@ function renderAllStats(s){
 // ── 활동 보고서 통계 ────────────────────────────────────────────
 function chkAct(id){ const el=document.getElementById(id); return el?el.checked:true; }
 
+// ── 활동보고서 통계 기간 단위 (전체/월별/주별/일별/기간선택) ──
+let actPeriodMode='all';
+
+function setActPeriodMode(mode,btn){
+  actPeriodMode=mode;
+  document.querySelectorAll('[id^="actPeriodBtn-"]').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  ['actStatModeAll','actStatModeMonth','actStatModeWeek','actStatModeDay','actStatModeRange'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.style.display='none';
+  });
+  const map={all:'actStatModeAll',month:'actStatModeMonth',week:'actStatModeWeek',day:'actStatModeDay',range:'actStatModeRange'};
+  const el=document.getElementById(map[mode]);
+  if(el) el.style.display=(mode==='month'||mode==='week'||mode==='day')?'flex':'block';
+  if(mode==='month') initActStatYear();
+}
+
+function initActStatYear(){
+  const sel=document.getElementById('actStatYear');
+  if(!sel||sel.options.length>0) return;
+  const cur=new Date().getFullYear();
+  for(let y=cur;y>=cur-3;y--){
+    const opt=document.createElement('option');
+    opt.value=y; opt.textContent=y+'년';
+    if(y===cur) opt.selected=true;
+    sel.appendChild(opt);
+  }
+}
+
+function setActWeekRange(offset){
+  const now=new Date();
+  const day=now.getDay();
+  const mon=new Date(now); mon.setDate(now.getDate()-day+1+(offset*7));
+  const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+  const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  document.getElementById('actStatWeekFrom').value=fmt(mon);
+  document.getElementById('actStatWeekTo').value=fmt(sun);
+}
+
+function getActStatDates(){
+  const pad=n=>String(n).padStart(2,'0');
+  let from='', to='';
+  if(actPeriodMode==='all'){ from=''; to=''; }
+  else if(actPeriodMode==='month'){
+    const y=document.getElementById('actStatYear')?.value||new Date().getFullYear();
+    const m=document.getElementById('actStatMonth')?.value||'';
+    if(m){ from=`${y}-${m}-01`; const last=new Date(parseInt(y),parseInt(m),0).getDate(); to=`${y}-${m}-${pad(last)}`; }
+    else { from=`${y}-01-01`; to=`${y}-12-31`; }
+  } else if(actPeriodMode==='week'){
+    from=document.getElementById('actStatWeekFrom')?.value||'';
+    to  =document.getElementById('actStatWeekTo')?.value||'';
+    if(!from||!to){ setActWeekRange(0); from=document.getElementById('actStatWeekFrom').value; to=document.getElementById('actStatWeekTo').value; }
+  } else if(actPeriodMode==='day'){
+    const d=document.getElementById('actStatDay')?.value||'';
+    from=d; to=d;
+  } else { // range
+    from=document.getElementById('actStatFrom')?.value||'';
+    to  =document.getElementById('actStatTo')?.value||'';
+  }
+  return {from,to};
+}
+
 function loadActStats(){
-  const from=document.getElementById('actStatFrom').value;
-  const to=document.getElementById('actStatTo').value;
+  const {from,to}=getActStatDates();
   const cn=document.getElementById('actStatConsultant')?.value||'';
   const bodyEl=document.getElementById('actStatsBody');
   bodyEl.innerHTML='<div class="no-resv"><i class="fa-solid fa-spinner fa-spin"></i><br>집계 중...</div>';
@@ -2648,8 +2748,12 @@ function fmtTimeKr(val){
   return '—';
 }
 
-// ── 7일 이내 체크 ──────────────────────────────────────────────
+// ── 수정·삭제 가능 여부 ────────────────────────────────────────
+// ※ 2026-09-02: 기간 제한 해제 — 작성일과 관계없이 모든 기록을 수정·삭제할 수 있습니다.
+//   7일 제한을 다시 켜려면 아래 return true; 를 지우고 그 밑의 원래 코드를 살리세요.
 function isWithin7Days(writtenAt){
+  return true;
+  /* ── 원래 7일 제한 로직 (필요 시 복구) ──
   if(!writtenAt) return false;
   const iso=fmtDateStr(writtenAt);
   if(!iso) return false;
@@ -2658,6 +2762,7 @@ function isWithin7Days(writtenAt){
   now.setHours(0,0,0,0);
   const diff=Math.floor((now-d)/86400000);
   return diff>=0&&diff<=7;
+  */
 }
 
 // ── 상담보고서 목록 로드 ────────────────────────────────────────
@@ -3520,17 +3625,18 @@ function selectAllStats(checked){
 }
 
 // ── 보고서 통계 기간 모드 ──────────────────────────────────────
-let rptPeriodMode = 'month';
+let rptPeriodMode = 'all';
 
 function setRptPeriodMode(mode, btn){
   rptPeriodMode = mode;
   document.querySelectorAll('[id^="rptPeriodBtn-"]').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  ['rptStatModeMonth','rptStatModeWeek','rptStatModeDay'].forEach(id=>{
-    document.getElementById(id).style.display='none';
+  ['rptStatModeAll','rptStatModeMonth','rptStatModeWeek','rptStatModeDay'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.style.display='none';
   });
-  const modeMap={month:'rptStatModeMonth',week:'rptStatModeWeek',day:'rptStatModeDay'};
-  document.getElementById(modeMap[mode]).style.display='flex';
+  const modeMap={all:'rptStatModeAll',month:'rptStatModeMonth',week:'rptStatModeWeek',day:'rptStatModeDay'};
+  const target=document.getElementById(modeMap[mode]);
+  if(target) target.style.display = (mode==='all') ? 'block' : 'flex';
 }
 
 function setWeekRange(offset){
@@ -3546,7 +3652,9 @@ function setWeekRange(offset){
 function getRptStatDates(){
   const cn=document.getElementById('rptStatConsultant')?.value||'';
   let from='', to='';
-  if(rptPeriodMode==='month'){
+  if(rptPeriodMode==='all'){
+    from=''; to='';
+  } else if(rptPeriodMode==='month'){
     const y=document.getElementById('rptStatYear')?.value||new Date().getFullYear();
     const m=document.getElementById('rptStatMonth')?.value||'';
     if(m){
@@ -4158,8 +4266,8 @@ function renderMyTable(records){
         ? ` <span onclick="openRptById(${rp.rowIndex},${bk?bk.rowIndex:'null'})" style="cursor:pointer;background:#e3f2fd;color:#1565c0;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">📄 ${rp.client||'내담자'}님 상담보고서 확인</span>`
         : (bk ? ` <span onclick="writeRpt('${g.activityDate}','${bk.start}','${camp}')" style="cursor:pointer;background:#fff3e0;color:#f57c00;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">📝 상담보고서 작성</span>` : '');
       let del='';
-      if(rp && isWithin7Days(rp.writtenAt)) del=` <span onclick="deleteRptLine(${rp.rowIndex})" title="이 상담보고서 삭제(7일 이내)" style="cursor:pointer;color:#c62828;font-size:10px">✕</span>`;
-      else if(bk && isWithin7Days(bk.submitTime)) del=` <span onclick="deleteBlock(${bk.rowIndex})" title="이 시간 삭제(7일 이내)" style="cursor:pointer;color:#c62828;font-size:10px">✕</span>`;
+      if(rp && isWithin7Days(rp.writtenAt)) del=` <span onclick="deleteRptLine(${rp.rowIndex})" title="이 상담보고서 삭제" style="cursor:pointer;color:#c62828;font-size:10px">✕</span>`;
+      else if(bk && isWithin7Days(bk.submitTime)) del=` <span onclick="deleteBlock(${bk.rowIndex})" title="이 시간 삭제" style="cursor:pointer;color:#c62828;font-size:10px">✕</span>`;
       return `<div style="white-space:nowrap;margin-bottom:4px">${timeTxt}${tag}${del}</div>`;
     });
     const consultCell = consultParts.length ? consultParts.join('') : '—';
@@ -4187,8 +4295,8 @@ function renderMyTable(records){
         ? ` <span onclick="openActById(${ac.rowIndex},${bk?bk.rowIndex:'null'})" style="cursor:pointer;background:#f3e5f5;color:#6a1b9a;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">📋 ${ac.type||'활동'} 활동보고서 확인</span>`
         : (bk ? ` <span onclick="writeAct('${g.activityDate}','${bk.start}','${camp}')" style="cursor:pointer;background:#fce4ec;color:#ad1457;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">📝 활동보고서 작성</span>` : '');
       let del='';
-      if(ac && isWithin7Days(ac.writtenAt)) del=` <span onclick="deleteActLine(${ac.rowIndex})" title="이 활동보고서 삭제(7일 이내)" style="cursor:pointer;color:#c62828;font-size:10px">✕</span>`;
-      else if(bk && isWithin7Days(bk.submitTime)) del=` <span onclick="deleteBlock(${bk.rowIndex})" title="이 시간 삭제(7일 이내)" style="cursor:pointer;color:#c62828;font-size:10px">✕</span>`;
+      if(ac && isWithin7Days(ac.writtenAt)) del=` <span onclick="deleteActLine(${ac.rowIndex})" title="이 활동보고서 삭제" style="cursor:pointer;color:#c62828;font-size:10px">✕</span>`;
+      else if(bk && isWithin7Days(bk.submitTime)) del=` <span onclick="deleteBlock(${bk.rowIndex})" title="이 시간 삭제" style="cursor:pointer;color:#c62828;font-size:10px">✕</span>`;
       return `<div style="white-space:nowrap;margin-bottom:4px">${timeTxt}${tag}${del}</div>`;
     });
     const otherCell = otherParts.length ? otherParts.join('') : '—';
@@ -4276,7 +4384,7 @@ function deleteDay(rowIndexes){
   delOne(0);
 }
 
-// 보고서만 있는 줄의 ✕ → 상담/활동 보고서 삭제 (7일 이내)
+// 보고서만 있는 줄의 ✕ → 상담/활동 보고서 삭제
 function deleteRptLine(rowIndex){
   if(!confirm('이 상담보고서를 삭제하시겠습니까?'))return;
   google.script.run
@@ -4675,6 +4783,18 @@ function refreshAdminPanel(){
   document.querySelectorAll('[data-weekrange]').forEach(btn=>{
     if(!btn.dataset.bound){ btn.dataset.bound='1';
       btn.addEventListener('click', function(){ setWeekRange(parseInt(this.dataset.weekrange)); });
+    }
+  });
+  // 활동보고서 통계 기간 단위 버튼
+  document.querySelectorAll('[data-actperiod]').forEach(btn=>{
+    if(!btn.dataset.bound){ btn.dataset.bound='1';
+      btn.addEventListener('click', function(){ setActPeriodMode(this.dataset.actperiod, this); });
+    }
+  });
+  // 활동보고서 통계 주별 버튼
+  document.querySelectorAll('[data-actweekrange]').forEach(btn=>{
+    if(!btn.dataset.bound){ btn.dataset.bound='1';
+      btn.addEventListener('click', function(){ setActWeekRange(parseInt(this.dataset.actweekrange)); });
     }
   });
   // 전체선택/해제
