@@ -5160,22 +5160,25 @@ async function submitForm(){
   if(photoFiles.clockOut) clockOutPhoto=await uploadPhoto(photoFiles.clockOut,'clockOut');
 
   const base={activityDate:date,consultantName:name,campus:camp,fileName:'',fileUrl:''};
+  // 출퇴근·사진은 그날의 모든 줄에 똑같이 채워 넣는다(추가 시간블록 줄만 봐도
+  // 그날 출퇴근/사진 여부를 바로 알 수 있게 — 대표 줄에만 있으면 나머지 줄이
+  // 마치 정보가 빠진 것처럼 보여 혼동을 줌)
+  const clockIn=document.getElementById('clockIn').value;
+  const clockOut=document.getElementById('clockOut').value;
+  const attend={clockIn,clockOut,clockInPhoto,clockOutPhoto};
   const records=[];
   // 대표 기록: 출퇴근 + 첫 컨설팅 + 첫 컨설팅외
-  records.push(Object.assign({}, base, {
-    clockIn:document.getElementById('clockIn').value,
-    clockOut:document.getElementById('clockOut').value,
-    clockInPhoto, clockOutPhoto,
+  records.push(Object.assign({}, base, attend, {
     consultStart:consultBlocks[0]?consultBlocks[0].start:'', consultEnd:consultBlocks[0]?consultBlocks[0].end:'',
     otherStart:otherBlocks[0]?otherBlocks[0].start:'', otherEnd:otherBlocks[0]?otherBlocks[0].end:''
   }));
-  // 추가 컨설팅 블록 → 별도 행
+  // 추가 컨설팅 블록 → 별도 행 (출퇴근·사진 동일하게 포함)
   for(let i=1;i<consultBlocks.length;i++){
-    records.push(Object.assign({}, base, {clockIn:'',clockOut:'',clockInPhoto:'',clockOutPhoto:'',consultStart:consultBlocks[i].start,consultEnd:consultBlocks[i].end,otherStart:'',otherEnd:''}));
+    records.push(Object.assign({}, base, attend, {consultStart:consultBlocks[i].start,consultEnd:consultBlocks[i].end,otherStart:'',otherEnd:''}));
   }
-  // 추가 컨설팅외 블록 → 별도 행
+  // 추가 컨설팅외 블록 → 별도 행 (출퇴근·사진 동일하게 포함)
   for(let i=1;i<otherBlocks.length;i++){
-    records.push(Object.assign({}, base, {clockIn:'',clockOut:'',clockInPhoto:'',clockOutPhoto:'',consultStart:'',consultEnd:'',otherStart:otherBlocks[i].start,otherEnd:otherBlocks[i].end}));
+    records.push(Object.assign({}, base, attend, {consultStart:'',consultEnd:'',otherStart:otherBlocks[i].start,otherEnd:otherBlocks[i].end}));
   }
 
   // 순차 저장
