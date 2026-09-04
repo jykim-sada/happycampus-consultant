@@ -5265,7 +5265,7 @@ function checkMissingItemsOnLogin(){
     .getMissingReportsSummary(currentUser);
 }
 
-const _MISS_TYPE_LABEL={consult:'컨설팅 보고서(신규 작성)',other:'컨설팅외 보고서(신규 작성)',clockInPhoto:'출근 사진',clockOutPhoto:'퇴근 사진',consultTime:'컨설팅 보고서 - 상담시간 비어있음',actTime:'활동보고서 - 시작시간 비어있음'};
+const _MISS_TYPE_LABEL={consult:'컨설팅 보고서(신규 작성)',other:'컨설팅외 보고서(신규 작성)',clockInPhoto:'출근 사진',clockOutPhoto:'퇴근 사진',consultTime:'컨설팅 보고서 - 상담시간 비어있음',actTime:'활동보고서 - 시작시간 비어있음',noAttendance:'⚠️ 그날 출퇴근·활동기록 자체가 없음'};
 const _MISS_IS_PHOTO={clockInPhoto:true,clockOutPhoto:true};
 const _MISS_IS_CONTENT={consultTime:true,actTime:true};
 function showMissingItemsModal(list){
@@ -5276,7 +5276,9 @@ function showMissingItemsModal(list){
     const cOut= list.filter(m=>typeOf(m)==='clockOutPhoto').length;
     const rpt = list.filter(m=>typeOf(m)==='consult'||typeOf(m)==='other').length;
     const incomplete = list.filter(m=>typeOf(m)==='consultTime'||typeOf(m)==='actTime').length;
+    const noAtt = list.filter(m=>typeOf(m)==='noAttendance').length;
     const parts=[];
+    if(noAtt) parts.push('출퇴근 기록 없음 '+noAtt+'건');
     if(cIn)  parts.push('출근 사진 '+cIn+'건');
     if(cOut) parts.push('퇴근 사진 '+cOut+'건');
     if(rpt)  parts.push('보고서 '+rpt+'건');
@@ -5291,11 +5293,13 @@ function showMissingItemsModal(list){
       let label=_MISS_TYPE_LABEL[type]||type;
       if(type==='consultTime'&&m.client) label+=' — '+m.client+'님';
       const timeTxt=m.time?('('+m.time+')'):'';
-      const action=_MISS_IS_PHOTO[type]
-        ? 'goFixPhoto('+m.rowIndex+',\''+type+'\')'
-        : _MISS_IS_CONTENT[type]
-          ? 'goFixReportContent('+m.rowIndex+',\''+type+'\')'
-          : 'goWriteMissing(\''+type+'\',\''+m.date+'\',\''+m.time+'\')';
+      const action=type==='noAttendance'
+        ? 'goWriteAttendance(\''+m.date+'\',\''+(m.campus||'').replace(/'/g,'')+'\')'
+        : _MISS_IS_PHOTO[type]
+          ? 'goFixPhoto('+m.rowIndex+',\''+type+'\')'
+          : _MISS_IS_CONTENT[type]
+            ? 'goFixReportContent('+m.rowIndex+',\''+type+'\')'
+            : 'goWriteMissing(\''+type+'\',\''+m.date+'\',\''+m.time+'\')';
       return '<div style="padding:.6rem .8rem;border:1px solid #ffcc80;background:#fff8e1;border-radius:10px;margin-bottom:.5rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">'
         +'<span style="flex:1;font-size:.85rem"><b>'+m.date+'</b> · '+label+' '+timeTxt+'</span>'
         +'<button type="button" class="modal-btn" style="padding:.4rem .9rem;font-size:.8rem;width:auto" onclick="'+action+'">'+(_MISS_IS_CONTENT[type]?'수정하기':'작성하기')+'</button>'
@@ -5309,6 +5313,17 @@ function goWriteMissing(type,date,time){
   closeModal('missingItemsModal');
   if(type==='consult') writeRpt(date,time,'');
   else writeAct(date,time,'');
+}
+
+function goWriteAttendance(date,campus){
+  closeModal('missingItemsModal');
+  switchTab('form');
+  setTimeout(()=>{
+    const dateEl=document.getElementById('activityDate'); if(dateEl) dateEl.value=date||'';
+    if(campus){ const ce=document.getElementById('campus'); if(ce) ce.value=campus; }
+    refreshTimeWidgets();
+    showToast('이 날짜의 출퇴근 시간을 입력하고 저장해 주세요.','success');
+  },400);
 }
 
 function goFixReportContent(rowIndex,type){
