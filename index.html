@@ -2898,23 +2898,33 @@ function loadMyRptList(period='all'){
 
 // ── 보고서 미리보기 모달 (Apps Script iframe 환경 대응) ─────────
 function showReportPreview(html){
+  _renderReportPreview([html]);
+}
+
+// 여러 건을 한 번에 미리보기/인쇄 → 브라우저 "인쇄 → PDF로 저장"으로 선택한 전체가 한 PDF로 저장됨
+function showReportPreviewMulti(htmlList){
+  if(!htmlList||!htmlList.length) return;
+  _renderReportPreview(htmlList);
+}
+
+function _renderReportPreview(htmlList){
   const modal=document.getElementById('reportPreviewModal');
   const body=document.getElementById('reportPreviewBody');
   if(!modal||!body) return;
 
   // 제목 추출 → 인쇄 시 PDF 파일명으로 사용
-  const titleMatch=html.match(/<title[^>]*>([^<]*)<\/title>/i);
-  if(titleMatch) document.title=titleMatch[1];
-  // HTML에서 body 내용만 추출
-  const bodyMatch=html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-  const styleMatch=html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+  const firstTitleMatch=htmlList[0].match(/<title[^>]*>([^<]*)<\/title>/i);
+  const firstTitle=firstTitleMatch?firstTitleMatch[1]:'보고서';
+  document.title = htmlList.length>1 ? `${firstTitle}_외${htmlList.length-1}건` : firstTitle;
 
-  // 스타일을 scoped로 적용
-  const styleContent=styleMatch?styleMatch[1]:'';
-  const bodyContent=bodyMatch?bodyMatch[1]:'';
-
-  // 인쇄 버튼 제거 (모달에 별도로 있음)
-  const cleanBody=bodyContent.replace(/<button[^>]*class="btn-pdf[^"]*"[^>]*>.*?<\/button>/gs,'');
+  // 각 건의 body 내용만 추출해서 이어붙이고, 인쇄 시 건마다 페이지를 나눔
+  const pages=htmlList.map((html,i)=>{
+    const bodyMatch=html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    const bodyContent=bodyMatch?bodyMatch[1]:'';
+    // 인쇄 버튼 제거 (모달에 별도로 있음)
+    const cleanBody=bodyContent.replace(/<button[^>]*class="btn-pdf[^"]*"[^>]*>.*?<\/button>/gs,'');
+    return `<div class="report-page"${i>0?' style="margin-top:26px;padding-top:26px;border-top:2px dashed #cfd8dc"':''}>${cleanBody}</div>`;
+  }).join('');
 
   body.innerHTML=`<style>
 #reportPreviewBody table{width:100%;border-collapse:collapse;margin-bottom:18px}
@@ -2934,7 +2944,11 @@ function showReportPreview(html){
 #reportPreviewBody .sec-body.green{background:#fafffe;border-color:#c8e6c9}
 #reportPreviewBody .status-tag{display:inline-block;padding:1px 10px;border-radius:20px;font-size:12px;font-weight:700;border:1.5px solid currentColor}
 #reportPreviewBody .footer{margin-top:28px;text-align:center;font-size:11px;color:#aaa;border-top:1px solid #e0e0e0;padding-top:12px}
-</style>${cleanBody}`;
+@media print{
+  #reportPreviewBody .report-page{border-top:none!important;margin-top:0!important;padding-top:0!important;page-break-before:always}
+  #reportPreviewBody .report-page:first-child{page-break-before:auto}
+}
+</style>${pages}`;
 
   modal.style.display='block';
   document.body.style.overflow='hidden';
@@ -3588,8 +3602,8 @@ function renderAdminRptList(rows,el){
   el.querySelector('#adminRptDlSelected').addEventListener('click',()=>{
     const sel=[...el.querySelectorAll('.admin-rpt-chk:checked')].map(c=>rows[parseInt(c.dataset.idx)]);
     if(!sel.length){showToast('선택된 항목이 없습니다','error');return;}
-    sel.forEach(r=>downloadRptReport(rowToRptObj(r)));
-    showToast(sel.length+'건 PDF 창을 열었습니다','success');
+    showReportPreviewMulti(sel.map(r=>buildRptReportHtml(rowToRptObj(r))));
+    showToast(sel.length+'건을 한 파일로 모았습니다. 미리보기에서 "인쇄 / PDF 저장"을 눌러 저장하세요','success');
   });
   el.querySelectorAll('[data-adminrptpdf]').forEach(btn=>{
     btn.addEventListener('click',function(){downloadRptReport(rowToRptObj(rows[parseInt(this.dataset.adminrptpdf)]));});
@@ -3645,8 +3659,8 @@ function renderAdminActList(rows,el){
   el.querySelector('#adminActDlSelected').addEventListener('click',()=>{
     const sel=[...el.querySelectorAll('.admin-act-chk:checked')].map(c=>rows[parseInt(c.dataset.idx)]);
     if(!sel.length){showToast('선택된 항목이 없습니다','error');return;}
-    sel.forEach(r=>downloadActReport(rowToActObj(r)));
-    showToast(sel.length+'건 PDF 창을 열었습니다','success');
+    showReportPreviewMulti(sel.map(r=>buildActReportHtml(rowToActObj(r))));
+    showToast(sel.length+'건을 한 파일로 모았습니다. 미리보기에서 "인쇄 / PDF 저장"을 눌러 저장하세요','success');
   });
   el.querySelectorAll('[data-adminactpdf]').forEach(btn=>{
     btn.addEventListener('click',function(){downloadActReport(rowToActObj(rows[parseInt(this.dataset.adminactpdf)]));});
