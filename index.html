@@ -5265,8 +5265,9 @@ function checkMissingItemsOnLogin(){
     .getMissingReportsSummary(currentUser);
 }
 
-const _MISS_TYPE_LABEL={consult:'컨설팅 보고서',other:'컨설팅외 보고서',clockInPhoto:'출근 사진',clockOutPhoto:'퇴근 사진'};
+const _MISS_TYPE_LABEL={consult:'컨설팅 보고서(신규 작성)',other:'컨설팅외 보고서(신규 작성)',clockInPhoto:'출근 사진',clockOutPhoto:'퇴근 사진',consultTime:'컨설팅 보고서 - 상담시간 비어있음',actTime:'활동보고서 - 시작시간 비어있음'};
 const _MISS_IS_PHOTO={clockInPhoto:true,clockOutPhoto:true};
+const _MISS_IS_CONTENT={consultTime:true,actTime:true};
 function showMissingItemsModal(list){
   const subEl=document.getElementById('missingItemsSub');
   if(subEl){
@@ -5274,10 +5275,12 @@ function showMissingItemsModal(list){
     const cIn = list.filter(m=>typeOf(m)==='clockInPhoto').length;
     const cOut= list.filter(m=>typeOf(m)==='clockOutPhoto').length;
     const rpt = list.filter(m=>typeOf(m)==='consult'||typeOf(m)==='other').length;
+    const incomplete = list.filter(m=>typeOf(m)==='consultTime'||typeOf(m)==='actTime').length;
     const parts=[];
     if(cIn)  parts.push('출근 사진 '+cIn+'건');
     if(cOut) parts.push('퇴근 사진 '+cOut+'건');
     if(rpt)  parts.push('보고서 '+rpt+'건');
+    if(incomplete) parts.push('내용 보완 '+incomplete+'건');
     subEl.textContent = parts.join(', ')+'의 내용이 없습니다. 확인하시고 작성해 주세요.';
   }
   const shown=list.slice(0,8);
@@ -5285,13 +5288,17 @@ function showMissingItemsModal(list){
   if(body){
     body.innerHTML = shown.map(m=>{
       const type=m.type||m.category;
-      const label=_MISS_TYPE_LABEL[type]||type;
+      let label=_MISS_TYPE_LABEL[type]||type;
+      if(type==='consultTime'&&m.client) label+=' — '+m.client+'님';
+      const timeTxt=m.time?('('+m.time+')'):'';
       const action=_MISS_IS_PHOTO[type]
         ? 'goFixPhoto('+m.rowIndex+',\''+type+'\')'
-        : 'goWriteMissing(\''+type+'\',\''+m.date+'\',\''+m.time+'\')';
+        : _MISS_IS_CONTENT[type]
+          ? 'goFixReportContent('+m.rowIndex+',\''+type+'\')'
+          : 'goWriteMissing(\''+type+'\',\''+m.date+'\',\''+m.time+'\')';
       return '<div style="padding:.6rem .8rem;border:1px solid #ffcc80;background:#fff8e1;border-radius:10px;margin-bottom:.5rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">'
-        +'<span style="flex:1;font-size:.85rem"><b>'+m.date+'</b> · '+label+' ('+m.time+')</span>'
-        +'<button type="button" class="modal-btn" style="padding:.4rem .9rem;font-size:.8rem;width:auto" onclick="'+action+'">작성하기</button>'
+        +'<span style="flex:1;font-size:.85rem"><b>'+m.date+'</b> · '+label+' '+timeTxt+'</span>'
+        +'<button type="button" class="modal-btn" style="padding:.4rem .9rem;font-size:.8rem;width:auto" onclick="'+action+'">'+(_MISS_IS_CONTENT[type]?'수정하기':'작성하기')+'</button>'
         +'</div>';
     }).join('') + (list.length>shown.length ? '<div style="text-align:center;color:#888;font-size:.8rem;margin-top:.4rem">외 '+(list.length-shown.length)+'건 더 있습니다</div>' : '');
   }
@@ -5302,6 +5309,12 @@ function goWriteMissing(type,date,time){
   closeModal('missingItemsModal');
   if(type==='consult') writeRpt(date,time,'');
   else writeAct(date,time,'');
+}
+
+function goFixReportContent(rowIndex,type){
+  closeModal('missingItemsModal');
+  if(type==='consultTime') openRptById(rowIndex);
+  else openActById(rowIndex);
 }
 
 function goFixPhoto(rowIndex,type){
