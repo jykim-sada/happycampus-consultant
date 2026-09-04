@@ -1927,6 +1927,12 @@ function loadConsultantDropdowns(){
       el.innerHTML=`<option value="">${placeholder}</option>`;
       list.forEach(n=>{ el.innerHTML+=`<option value="${n}">${n}</option>`; });
     });
+    // 컨설턴트로 로그인된 상태에서 드롭다운이 다시 그려지면 선택이 풀리므로,
+    // 로그인된 본인 이름으로 즉시 재세팅한다 (잠금 상태도 그대로 유지)
+    if(currentRole==='consultant'&&currentUser){
+      const sel=document.getElementById('consultantName');
+      if(sel){ sel.value=currentUser; sel.disabled=true; }
+    }
   };
   // 즉시 fallback으로 먼저 채우기
   fillDropdowns(FALLBACK_LIST);
