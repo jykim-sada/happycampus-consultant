@@ -1887,7 +1887,7 @@ function renderCampusBars(cc){
     '안성 행복캠퍼스':'안성<br>행복캠퍼스',
     '시흥 행복캠퍼스':'시흥<br>행복캠퍼스'
   };
-  el.innerHTML=CAMPUS_LIST.map(name=>{
+  let html=CAMPUS_LIST.map(name=>{
     const cnt=cc[name]||0;
     const nameHtml=twoLine[name]||name;
     return `<div class="campus-card">
@@ -1895,6 +1895,14 @@ function renderCampusBars(cc){
       <div class="cc-name">${nameHtml}</div>
     </div>`;
   }).join('');
+  // 정식 목록에 없는 활동지역(빈칸·오타)도 카드로 노출 → 캠퍼스 합계가 항상 전체 건수와 일치
+  Object.keys(cc).filter(k=>CAMPUS_LIST.indexOf(k)===-1&&cc[k]>0).sort((a,b)=>cc[b]-cc[a]).forEach(k=>{
+    html+=`<div class="campus-card" style="border:1.5px solid #ffb74d;background:#fffaf2">
+      <div class="cc-count" style="color:#e65100">${cc[k]}</div>
+      <div class="cc-name" style="color:#e65100">${k==='미지정'?'활동지역<br>미지정':k}</div>
+    </div>`;
+  });
+  el.innerHTML=html;
 }
 
 // ── 드롭다운 ──────────────────────────────────────
