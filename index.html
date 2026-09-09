@@ -1703,8 +1703,8 @@ tr:hover td{background:#f0faf9}
 
 <!-- ── 보고서 미리보기 모달 ── -->
 <div id="reportPreviewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;overflow-y:auto;padding:20px">
-  <div style="background:#fff;max-width:860px;margin:0 auto;border-radius:16px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.3)">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:#1a2e1a;color:#fff">
+  <div class="preview-sheet" style="background:#fff;max-width:860px;margin:0 auto;border-radius:16px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+    <div class="preview-toolbar" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:#1a2e1a;color:#fff">
       <span style="font-size:15px;font-weight:700">보고서 미리보기</span>
       <div style="display:flex;gap:8px">
         <button id="btnPreviewPrint" style="padding:7px 16px;background:#2e7d32;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🖨️ 인쇄 / PDF 저장</button>
@@ -1800,7 +1800,7 @@ const photoFiles={clockIn:null,clockOut:null};
 let currentRole=null; // 'consultant' | 'admin' | null
 let currentUser=null; // 컨설턴트명
 
-const CAMPUS_LIST=['남부 중장년 행복캠퍼스','북부 중장년 행복캠퍼스','경기도 커뮤니티 공간(행복아지트)','화성 중장년 행복캠퍼스','군포 중장년 행복캠퍼스','양주 중장년 행복캠퍼스','안성 행복캠퍼스','시흥 행복캠퍼스'];
+const CAMPUS_LIST=['남부 중장년 행복캠퍼스','북부 중장년 행복캠퍼스','경기도 커뮤니티 공간(행복아지트)','화성 중장년 행복캠퍼스','군포 중장년 행복캠퍼스','양주 중장년 행복캠퍼스','안성 행복캠퍼스','시흥 행복캠퍼스','기타'];
 
 // ── 초기화 ────────────────────────────────────────
 // ── 로그인 상태 유지 (새로고침해도 유지 / 창·탭 닫으면 자동 로그아웃) ──
@@ -2967,10 +2967,25 @@ function _renderReportPreview(htmlList){
     const newBtn=printBtn.cloneNode(true);
     printBtn.parentNode.replaceChild(newBtn,printBtn);
     newBtn.addEventListener('click',()=>{
-    const body=document.getElementById('reportPreviewBody');
-    const orig=document.body.innerHTML;
     const style=document.createElement('style');
-    style.textContent='body>*:not(#reportPreviewModal){display:none!important}.rpt-header,.info-label{-webkit-print-color-adjust:exact;print-color-adjust:exact}';
+    // 모달은 화면 고정(position:fixed)·스크롤 영역이라 그대로 인쇄하면 첫 페이지만 나옴.
+    // 인쇄할 때만 고정 해제·높이 제한 해제해서 내용 전체가 여러 페이지로 흘러가게 함.
+    style.textContent=`@media print{
+      @page{margin:12mm;size:A4}
+      html,body{height:auto!important;max-height:none!important;overflow:visible!important;background:#fff!important}
+      body>*:not(#reportPreviewModal){display:none!important}
+      #reportPreviewModal{position:static!important;inset:auto!important;display:block!important;
+        overflow:visible!important;height:auto!important;max-height:none!important;
+        background:none!important;padding:0!important;z-index:auto!important}
+      #reportPreviewModal .preview-sheet{max-width:none!important;width:auto!important;margin:0!important;
+        border-radius:0!important;overflow:visible!important;box-shadow:none!important}
+      #reportPreviewModal .preview-toolbar{display:none!important}
+      #reportPreviewBody{padding:0!important;overflow:visible!important;height:auto!important;max-height:none!important}
+      #reportPreviewBody .rpt-header,#reportPreviewBody .info-label,#reportPreviewBody .info-val,
+      #reportPreviewBody .sec-title,#reportPreviewBody .sec-body,#reportPreviewBody .status-tag{
+        -webkit-print-color-adjust:exact;print-color-adjust:exact}
+      #reportPreviewBody .sec,#reportPreviewBody table{page-break-inside:avoid}
+    }`;
     document.head.appendChild(style);
     window.print();
     document.head.removeChild(style);
