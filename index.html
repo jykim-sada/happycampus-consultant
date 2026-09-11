@@ -5090,14 +5090,38 @@ function convertTimeInputs(root){
   // 네이티브 <input type="time">(오전/오후 + 시계) 그대로 사용
 }
 
+function _spanMin(sv,ev){
+  if(!sv||!ev) return null;
+  const [sh,sm]=sv.split(':').map(Number),[eh,em]=ev.split(':').map(Number);
+  if([sh,sm,eh,em].some(n=>isNaN(n))) return null;
+  let d=(eh*60+em)-(sh*60+sm); if(d<0)d+=1440;
+  return d;
+}
+function _fmtMin(d){
+  const h=Math.floor(d/60),mn=d%60;
+  return h>0&&mn>0?h+'시간 '+mn+'분':h>0?h+'시간':mn+'분';
+}
 function calcTime(type){
   const m={work:['clockIn','clockOut','totalWork'],consult:['consultStart','consultEnd','totalConsult'],other:['otherStart','otherEnd','totalOther']};
-  const [s,e,t]=m[type],sv=document.getElementById(s).value,ev=document.getElementById(e).value,el=document.getElementById(t);
-  if(!sv||!ev){el.textContent='시간 입력';return;}
-  const [sh,sm]=sv.split(':').map(Number),[eh,em]=ev.split(':').map(Number);
-  let diff=(eh*60+em)-(sh*60+sm);if(diff<0)diff+=1440;
-  const h=Math.floor(diff/60),mn=diff%60;
-  el.textContent=h>0&&mn>0?h+'시간 '+mn+'분':h>0?h+'시간':mn+'분';
+  const [s,e,t]=m[type],el=document.getElementById(t);
+  if(!el) return;
+  if(type==='work'){
+    const d=_spanMin(document.getElementById(s).value,document.getElementById(e).value);
+    el.textContent = d==null?'시간 입력':_fmtMin(d);
+    return;
+  }
+  // '시간 추가'로 늘어난 칸까지 전부 합산 (첫 칸만 세던 문제 수정)
+  let total=0,counted=0,incomplete=false,midnight=false;
+  collectTimeBlocks(type).forEach(b=>{
+    const d=_spanMin(b.start,b.end);
+    if(d==null){incomplete=true;return;}
+    if(/^00:/.test(b.start)||/^00:/.test(b.end)) midnight=true;  // '오전 12시'를 정오로 착각한 입력
+    total+=d;counted++;
+  });
+  if(!counted){el.textContent='시간 입력';return;}
+  el.textContent=_fmtMin(total)+(counted>1?' ('+counted+'건 합계)':'')
+    +(incomplete?' · 시간 안 채운 칸 있음':'')
+    +(midnight?' · ⚠️ 오전 12시는 자정입니다 (정오는 오후 12시)':'');
 }
 
 // ── 파일/사진 ─────────────────────────────────────
@@ -5140,12 +5164,13 @@ function addTimePair(kind){
   const div=document.createElement('div');
   div.className='time-row-2';
   div.style.marginTop='0.5rem';
+  const recalc='calcTime(\''+kind+'\')';
   div.innerHTML=
-    '<div class="form-group"><label class="form-label">시작 시각 (추가)</label><input type="time" class="form-control '+sCls+'"></div>'+
+    '<div class="form-group"><label class="form-label">시작 시각 (추가)</label><input type="time" class="form-control '+sCls+'" onchange="'+recalc+'"></div>'+
     '<div class="form-group"><label class="form-label">종료 시각 (추가)</label>'+
       '<div style="display:flex;gap:4px">'+
-        '<input type="time" class="form-control '+eCls+'" style="flex:1">'+
-        '<button type="button" title="이 시간 삭제" style="width:2.6rem;flex-shrink:0;border:1.5px solid #fca5a5;background:#fee2e2;color:#c62828;border-radius:8px;cursor:pointer;font-weight:700" onclick="this.closest(\'.time-row-2\').remove()">✕</button>'+
+        '<input type="time" class="form-control '+eCls+'" style="flex:1" onchange="'+recalc+'">'+
+        '<button type="button" title="이 시간 삭제" style="width:2.6rem;flex-shrink:0;border:1.5px solid #fca5a5;background:#fee2e2;color:#c62828;border-radius:8px;cursor:pointer;font-weight:700" onclick="this.closest(\'.time-row-2\').remove();'+recalc+'">✕</button>'+
       '</div>'+
     '</div>';
   box.appendChild(div);
