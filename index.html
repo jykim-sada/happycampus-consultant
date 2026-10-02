@@ -804,9 +804,19 @@ tr:hover td{background:#f0faf9}
       </div>
     </div>
 
-    <button class="btn-submit" id="submitBtn" onclick="submitForm()">
-      <i class="fa-solid fa-paper-plane"></i> 저장
-    </button>
+    <div id="draftBar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;background:#fff8e1;border:1.5px solid #ffcc80;border-radius:10px;padding:10px 12px;margin-bottom:0.6rem;font-size:13px">
+      <span style="flex:1;min-width:150px">📝 임시저장된 내용이 있습니다 <span id="draftTime" style="color:#8d6e63"></span></span>
+      <button type="button" onclick="restoreDraft()" style="padding:5px 14px;border:none;border-radius:20px;background:#f57c00;color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:12px">불러오기</button>
+      <button type="button" onclick="clearDraft(true)" style="padding:5px 14px;border:1.5px solid #ddd;border-radius:20px;background:#fff;color:#777;font-weight:700;cursor:pointer;font-family:inherit;font-size:12px">삭제</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:stretch">
+      <button type="button" class="btn-submit" id="draftBtn" onclick="saveDraft(true)" style="flex:0 0 38%;background:#fff;color:#2e7d32;border:2px solid #a5d6a7">
+        <i class="fa-regular fa-floppy-disk"></i> 임시저장
+      </button>
+      <button class="btn-submit" id="submitBtn" onclick="submitForm()" style="flex:1">
+        <i class="fa-solid fa-paper-plane"></i> 저장
+      </button>
+    </div>
   </div>
 
   <!-- ── 예약 관리 탭 ── -->
@@ -1396,6 +1406,9 @@ tr:hover td{background:#f0faf9}
       <button class="my-subtab" id="adminSubAct" data-admintab="act">
         <i class="fa-solid fa-file-lines"></i><span class="tab-label">활동 보고서</span>
       </button>
+      <button class="my-subtab" id="adminSubAtt" data-admintab="att">
+        <i class="fa-solid fa-clock"></i><span class="tab-label">출퇴근</span>
+      </button>
     </div>
 
     <!-- ① 전체 통계 -->
@@ -1696,6 +1709,55 @@ tr:hover td{background:#f0faf9}
       </div>
     </div>
 
+    <!-- ④ 출퇴근 통계 -->
+    <div id="adminSubAttContent" style="display:none">
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-clock"></i> 컨설턴트별 출퇴근 통계</div>
+        <div class="filter-stack" style="margin-bottom:1rem">
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label">연도</label>
+              <select id="attYear" class="form-control"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">월</label>
+              <select id="attMonth" class="form-control">
+                <option value="">전체(연간)</option>
+                <option value="01">1월</option><option value="02">2월</option><option value="03">3월</option>
+                <option value="04">4월</option><option value="05">5월</option><option value="06">6월</option>
+                <option value="07">7월</option><option value="08">8월</option><option value="09">9월</option>
+                <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row-2" style="margin-top:0.6rem">
+            <div class="form-group">
+              <label class="form-label">컨설턴트</label>
+              <select id="attConsultant" class="form-control"><option value="">전체</option></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">캠퍼스</label>
+              <select id="attCampus" class="form-control">
+                <option value="">전체</option>
+                <option value="남부 중장년 행복캠퍼스">남부</option>
+                <option value="북부 중장년 행복캠퍼스">북부</option>
+                <option value="경기도 커뮤니티 공간(행복아지트)">행복아지트</option>
+                <option value="화성 중장년 행복캠퍼스">화성</option>
+                <option value="군포 중장년 행복캠퍼스">군포</option>
+                <option value="양주 중장년 행복캠퍼스">양주</option>
+                <option value="안성 행복캠퍼스">안성</option>
+                <option value="시흥 행복캠퍼스">시흥</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn-filter" id="btnLoadAttStats"><i class="fa-solid fa-magnifying-glass"></i> 출퇴근 조회</button>
+        </div>
+        <div id="attStatsBody">
+          <div class="no-resv" style="padding:2rem"><i class="fa-solid fa-clock" style="font-size:2rem;opacity:.3"></i><br>조회 버튼을 클릭하세요</div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div><!-- /container -->
 
@@ -1803,16 +1865,23 @@ let currentUser=null; // 컨설턴트명
 const CAMPUS_LIST=['남부 중장년 행복캠퍼스','북부 중장년 행복캠퍼스','경기도 커뮤니티 공간(행복아지트)','화성 중장년 행복캠퍼스','군포 중장년 행복캠퍼스','양주 중장년 행복캠퍼스','안성 행복캠퍼스','시흥 행복캠퍼스','기타'];
 
 // ── 초기화 ────────────────────────────────────────
-// ── 로그인 상태 유지 (새로고침해도 유지 / 창·탭 닫으면 자동 로그아웃) ──
+// ── 로그인 상태 유지 ──
+// localStorage 사용: 새로고침·뒤로가기·창을 닫았다 열어도 '로그아웃'을 누르기 전까지 유지된다.
+// (예전에는 sessionStorage 라서 탭이 바뀌거나 모바일 브라우저가 탭을 정리하면 로그아웃됐다)
 function saveAuth(){
-  try{ sessionStorage.setItem('hc_auth', JSON.stringify({role:currentRole, user:currentUser})); }catch(_){}
+  const v=JSON.stringify({role:currentRole, user:currentUser});
+  try{ localStorage.setItem('hc_auth', v); }catch(_){}
+  try{ sessionStorage.setItem('hc_auth', v); }catch(_){}
 }
 function clearAuth(){
+  try{ localStorage.removeItem('hc_auth'); }catch(_){}
   try{ sessionStorage.removeItem('hc_auth'); }catch(_){}
 }
 function restoreAuth(){
   try{
-    const raw=sessionStorage.getItem('hc_auth');
+    let raw=null;
+    try{ raw=localStorage.getItem('hc_auth'); }catch(_){}
+    if(!raw){ try{ raw=sessionStorage.getItem('hc_auth'); }catch(_){} }
     if(!raw) return false;
     const a=JSON.parse(raw);
     if(a && a.role && a.user){
@@ -1925,6 +1994,7 @@ function loadConsultantDropdowns(){
       {id:'cLoginName',        placeholder:'-- 이름 선택 --'},
       {id:'rptStatConsultant', placeholder:'전체'},
       {id:'allStatConsultant', placeholder:'전체'},
+      {id:'attConsultant',     placeholder:'전체'},
       {id:'actStatConsultant', placeholder:'전체'},
       {id:'dlRptConsultant',   placeholder:'전체'},
       {id:'dlActConsultant',   placeholder:'전체'},
@@ -2496,10 +2566,135 @@ function loadActReports(period='all'){
     .getActReports(currentUser);
 }
 function switchAdminSubtab(tab){
-  ['all','rpt','act'].forEach(t=>{
-    document.getElementById('adminSub'+t.charAt(0).toUpperCase()+t.slice(1)+'Content').style.display=tab===t?'':'none';
-    document.getElementById('adminSub'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('active',tab===t);
+  ['all','rpt','act','att'].forEach(t=>{
+    const cap=t.charAt(0).toUpperCase()+t.slice(1);
+    const content=document.getElementById('adminSub'+cap+'Content');
+    const btn=document.getElementById('adminSub'+cap);
+    if(content) content.style.display=tab===t?'':'none';
+    if(btn) btn.classList.toggle('active',tab===t);
   });
+  if(tab==='att') initAttYear();
+}
+
+// ── 출퇴근 통계 ────────────────────────────────────────────────
+function initAttYear(){
+  const sel=document.getElementById('attYear');
+  if(!sel||sel.options.length>0) return;
+  const cur=new Date().getFullYear();
+  const all=document.createElement('option');
+  all.value=''; all.textContent='전체 기간';
+  sel.appendChild(all);
+  for(let y=cur;y>=cur-3;y--){
+    const opt=document.createElement('option');
+    opt.value=y; opt.textContent=y+'년';
+    if(y===cur) opt.selected=true;
+    sel.appendChild(opt);
+  }
+  document.getElementById('attMonth').value=String(new Date().getMonth()+1).padStart(2,'0');
+}
+
+function loadAttStats(){
+  initAttYear();
+  const y=document.getElementById('attYear').value;
+  const m=document.getElementById('attMonth').value;
+  const cn=document.getElementById('attConsultant')?.value||'';
+  const campus=document.getElementById('attCampus')?.value||'';
+  let from='',to='';
+  if(y){
+    if(m){ const last=new Date(Number(y),Number(m),0).getDate();
+           from=`${y}-${m}-01`; to=`${y}-${m}-${String(last).padStart(2,'0')}`; }
+    else { from=`${y}-01-01`; to=`${y}-12-31`; }
+  }
+  const el=document.getElementById('attStatsBody');
+  el.innerHTML='<div class="no-resv"><i class="fa-solid fa-spinner fa-spin"></i><br>집계 중...</div>';
+  google.script.run
+    .withSuccessHandler(raw=>{
+      const res=typeof raw==='string'?JSON.parse(raw):raw;
+      if(!res||!res.success){el.innerHTML='<div class="no-resv">⚠️ 조회 실패: '+(res&&res.error||'')+'</div>';return;}
+      renderAttStats(res.att,{y,m,cn});
+    })
+    .withFailureHandler(err=>{el.innerHTML='<div class="no-resv">⚠️ 서버 오류: '+err.message+'</div>';})
+    .getAttendanceStats(from,to,cn,campus);
+}
+
+// 전역 CSS 의 th{color:#2e7d32; text-transform:uppercase} 때문에 진한 배경에서 글자가 안 보여서
+// 표 머리글은 인라인으로 색·정렬을 직접 지정한다
+const _TH='padding:8px 6px;color:#fff;font-size:12px;font-weight:700;text-transform:none;letter-spacing:0;text-align:center;white-space:nowrap;';
+
+function renderAttStats(a,ctx){
+  const el=document.getElementById('attStatsBody');
+  if(!a||!a.totalDays){el.innerHTML='<div class="no-resv">조회된 출퇴근 기록이 없습니다</div>';return;}
+  const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const period = ctx.y ? (ctx.m? `${ctx.y}년 ${Number(ctx.m)}월` : `${ctx.y}년 전체`) : '전체 기간';
+
+  let html=`<div style="font-size:12px;color:var(--muted);margin-bottom:0.6rem">
+    📅 ${esc(period)}${ctx.cn?' · '+esc(ctx.cn):' · 컨설턴트 전체'}</div>`;
+
+  html+=`<div class="rpt-kpi-grid">
+    <div class="rpt-kpi"><div class="rpt-kpi-icon" style="background:#EFF6FF">📆</div><div class="rpt-kpi-num" style="color:#3B82F6">${a.totalDays}</div><div class="rpt-kpi-label">총 활동일수</div></div>
+    <div class="rpt-kpi"><div class="rpt-kpi-icon" style="background:#ECFDF5">👥</div><div class="rpt-kpi-num" style="color:#10B981">${a.people}</div><div class="rpt-kpi-label">활동 컨설턴트</div></div>
+    <div class="rpt-kpi"><div class="rpt-kpi-icon" style="background:#F0FDF4">⏱️</div><div class="rpt-kpi-num" style="color:#10B981;font-size:1.05rem">${esc(a.totalWorkText)}</div><div class="rpt-kpi-label">총 근무시간</div></div>
+    <div class="rpt-kpi"><div class="rpt-kpi-icon" style="background:#FFF8E1">📊</div><div class="rpt-kpi-num" style="color:#F59E0B;font-size:1.05rem">${esc(a.avgText)}</div><div class="rpt-kpi-label">1일 평균 근무</div></div>
+    <div class="rpt-kpi"><div class="rpt-kpi-icon" style="background:#FEF2F2">⚠️</div><div class="rpt-kpi-num" style="color:#EF4444">${a.missing}</div><div class="rpt-kpi-label">출퇴근 시각 누락</div></div>
+    <div class="rpt-kpi"><div class="rpt-kpi-icon" style="background:#FDF2F8">📷</div><div class="rpt-kpi-num" style="color:#DB2777">${a.photoMissing}</div><div class="rpt-kpi-label">사진 누락</div></div>
+  </div>`;
+
+  // 컨설턴트별
+  html+=`<div class="card-title" style="margin-top:1.2rem;font-size:0.95rem"><i class="fa-solid fa-user-clock"></i> 컨설턴트별</div>
+  <div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:640px">
+    <thead><tr style="background:#2e7d32">
+      <th style="${_TH}text-align:left">컨설턴트</th>
+      <th style="${_TH}">활동일수</th>
+      <th style="${_TH}">총 근무시간</th>
+      <th style="${_TH}">1일 평균</th>
+      <th style="${_TH}">평균 출근</th>
+      <th style="${_TH}">평균 퇴근</th>
+      <th style="${_TH}">시각 누락</th>
+      <th style="${_TH}">사진 누락</th>
+    </tr></thead><tbody>`;
+  a.byConsultant.forEach((c,i)=>{
+    html+=`<tr style="background:${i%2?'#fafdfa':'#fff'};border-bottom:1px solid #e8f5e9">
+      <td style="padding:7px 6px;font-weight:700">${esc(c.name)}</td>
+      <td style="padding:7px 6px;text-align:center">${c.days}일</td>
+      <td style="padding:7px 6px;text-align:center;font-weight:700;color:#2e7d32">${esc(c.workText)}</td>
+      <td style="padding:7px 6px;text-align:center">${esc(c.avgText)}</td>
+      <td style="padding:7px 6px;text-align:center">${esc(c.avgIn)}</td>
+      <td style="padding:7px 6px;text-align:center">${esc(c.avgOut)}</td>
+      <td style="padding:7px 6px;text-align:center;${c.miss?'color:#c62828;font-weight:700':'color:#aaa'}">${c.miss||'—'}</td>
+      <td style="padding:7px 6px;text-align:center;${c.photoMiss?'color:#ad1457;font-weight:700':'color:#aaa'}">${c.photoMiss||'—'}</td>
+    </tr>`;
+  });
+  html+=`</tbody></table></div>`;
+
+  // 월별 (단일 월 조회가 아닐 때만)
+  if(a.byMonth&&a.byMonth.length>1){
+    html+=`<div class="card-title" style="margin-top:1.2rem;font-size:0.95rem"><i class="fa-solid fa-calendar-days"></i> 월별</div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:420px">
+      <thead><tr style="background:#1565c0">
+        <th style="${_TH}text-align:left">월</th>
+        <th style="${_TH}">인원</th>
+        <th style="${_TH}">활동일수</th>
+        <th style="${_TH}">총 근무시간</th>
+        <th style="${_TH}">1일 평균</th>
+      </tr></thead><tbody>`;
+    a.byMonth.forEach((m,i)=>{
+      html+=`<tr style="background:${i%2?'#f7fbff':'#fff'};border-bottom:1px solid #e3f2fd">
+        <td style="padding:7px 6px;font-weight:700">${esc(m.month)}</td>
+        <td style="padding:7px 6px;text-align:center">${m.people}명</td>
+        <td style="padding:7px 6px;text-align:center">${m.days}일</td>
+        <td style="padding:7px 6px;text-align:center;font-weight:700;color:#1565c0">${esc(m.workText)}</td>
+        <td style="padding:7px 6px;text-align:center">${esc(m.avgText)}</td>
+      </tr>`;
+    });
+    html+=`</tbody></table></div>`;
+  }
+
+  html+=`<div class="info" style="margin-top:1rem"><i class="fa-solid fa-circle-info"></i>
+    <p>같은 날 여러 번 저장된 기록은 <b>하루 1건</b>으로 묶어 계산합니다. 근무시간은 그날의 <b>가장 이른 출근 ~ 가장 늦은 퇴근</b> 기준입니다.</p></div>`;
+
+  el.innerHTML=html;
 }
 
 // ── 전체 통계 기간 모드 ────────────────────────────────────────
@@ -4206,6 +4401,9 @@ function applyLogin(){
     document.getElementById('myBannerName').textContent=currentUser;
     // 미작성 보고서 확인
     checkMissingItemsOnLogin();
+    // 작성하던 임시저장 내용이 있으면 안내
+    try{ checkDraft(); }catch(_){}
+    try{ bindDraftAutoSave(); }catch(_){}
   }
   if(currentRole==='admin'){
     const tabBar=document.getElementById('tabBar');
@@ -4450,7 +4648,13 @@ function openActById(rowIndex, blockRow){
 // 활동일자 한 줄 전체 삭제 (그 날짜의 모든 출력결과 행) — 행 밀림 방지 위해 큰 rowIndex부터
 function deleteDay(rowIndexes){
   if(!rowIndexes||!rowIndexes.length)return;
-  if(!confirm('이 날짜의 활동 기록을 모두 삭제하시겠습니까?'))return;
+  // 이 버튼은 '그 날짜의 모든 줄'을 지운다. 몇 건이 지워지는지 반드시 알려준다
+  // (시간블록을 여러 개 저장한 날은 줄이 여러 개라, 한 건만 지우려다 하루치를 통째로 잃는 사고가 있었음)
+  const n=rowIndexes.length;
+  const msg = n>1
+    ? '이 날짜의 활동 기록 '+n+'건이 모두 삭제됩니다.\n\n시간 기록을 한 건만 지우시려면 창을 닫고,\n각 시간 옆의 ✕ 버튼을 눌러주세요.\n\n정말 '+n+'건을 모두 삭제할까요?'
+    : '이 활동 기록을 삭제하시겠습니까?';
+  if(!confirm(msg))return;
   const sorted=rowIndexes.slice().sort((a,b)=>b-a);
   let fail=0;
   const delOne=(i)=>{
@@ -4679,9 +4883,9 @@ function renderMonthlyStats(s){
         <div class="stats-label">총 상담시간</div>
       </div>
       <div class="stats-card stats-teal">
-        <div class="stats-icon"><i class="fa-solid fa-user-check"></i></div>
-        <div class="stats-num">${s.doneCount}</div>
-        <div class="stats-label">상담 완료</div>
+        <div class="stats-icon"><i class="fa-solid fa-file-pen"></i></div>
+        <div class="stats-num">${s.rptCount!=null?s.rptCount:s.doneCount}</div>
+        <div class="stats-label">상담 건수</div>
       </div>
       <div class="stats-card stats-orange">
         <div class="stats-icon"><i class="fa-solid fa-calendar-xmark"></i></div>
@@ -4690,8 +4894,10 @@ function renderMonthlyStats(s){
       </div>
     </div>
     <div class="stats-detail">
-      <div class="stats-row"><span>컨설팅 활동</span><span>${s.consultCount}건</span></div>
-      <div class="stats-row"><span>컨설팅 외 활동</span><span>${s.otherCount}건</span></div>
+      <div class="stats-row"><span>상담 건수 <small style="color:#888">(상담보고서)</small></span><span>${s.rptCount!=null?s.rptCount:'—'}건</span></div>
+      <div class="stats-row"><span>활동 건수 <small style="color:#888">(활동보고서)</small></span><span>${s.actReportCount!=null?s.actReportCount:'—'}건</span></div>
+      <div class="stats-row"><span>컨설팅 시간대 <small style="color:#888">(시간블록)</small></span><span>${s.consultCount}건</span></div>
+      <div class="stats-row"><span>컨설팅 외 시간대 <small style="color:#888">(시간블록)</small></span><span>${s.otherCount}건</span></div>
       <div class="stats-row"><span>예약 완료</span><span>${s.doneCount}건</span></div>
       <div class="stats-row"><span>예약 취소</span><span>${s.cancelCount}건</span></div>
       <div class="stats-row"><span>노쇼</span><span>${s.noshowCount}건</span></div>
@@ -4853,6 +5059,11 @@ function refreshAdminPanel(){
   if(btnRpt && !btnRpt.dataset.bound){
     btnRpt.dataset.bound='1';
     btnRpt.addEventListener('click', loadRptStats);
+  }
+  const btnAtt = document.getElementById('btnLoadAttStats');
+  if(btnAtt && !btnAtt.dataset.bound){
+    btnAtt.dataset.bound='1';
+    btnAtt.addEventListener('click', loadAttStats);
   }
   // 조회 버튼 이벤트
   const dlBtns={
@@ -5222,10 +5433,19 @@ async function submitForm(){
 
   btn.disabled=true;btn.innerHTML='<div class="loader"></div> 저장 중...';
 
-  // 사진 업로드 (대표 기록에만)
+  // 사진 업로드 — 두 장을 동시에 올린다 (순서대로 올리면 그만큼 저장이 느려짐)
   let clockInPhoto='', clockOutPhoto='';
-  if(photoFiles.clockIn)  clockInPhoto =await uploadPhoto(photoFiles.clockIn,'clockIn');
-  if(photoFiles.clockOut) clockOutPhoto=await uploadPhoto(photoFiles.clockOut,'clockOut');
+  try{
+    const [pin,pout]=await Promise.all([
+      photoFiles.clockIn  ? uploadPhoto(photoFiles.clockIn,'clockIn')   : Promise.resolve(''),
+      photoFiles.clockOut ? uploadPhoto(photoFiles.clockOut,'clockOut') : Promise.resolve('')
+    ]);
+    clockInPhoto=pin||''; clockOutPhoto=pout||'';
+  }catch(e){
+    btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-paper-plane"></i> 저장';
+    showToast('사진 업로드 실패: '+(e&&e.message||''),'error');
+    return;
+  }
 
   const base={activityDate:date,consultantName:name,campus:camp,fileName:'',fileUrl:''};
   // 출퇴근·사진은 그날의 모든 줄에 똑같이 채워 넣는다(추가 시간블록 줄만 봐도
@@ -5249,21 +5469,111 @@ async function submitForm(){
     records.push(Object.assign({}, base, attend, {consultStart:'',consultEnd:'',otherStart:otherBlocks[i].start,otherEnd:otherBlocks[i].end}));
   }
 
-  // 순차 저장
-  let ok=0, fail=0;
-  const finish=()=>{
-    btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-paper-plane"></i> 저장';
-    if(fail===0){ showToast('✅ 활동 기록이 저장되었습니다! ('+ok+'건)','success'); resetForm(); loadPublicStats(); }
-    else showToast('일부 저장 실패 ('+ok+'건 성공 / '+fail+'건 실패)','error');
-  };
-  const saveOne=(i)=>{
-    if(i>=records.length){ finish(); return; }
-    google.script.run
-      .withSuccessHandler(res=>{ if(res&&res.success) ok++; else fail++; saveOne(i+1); })
-      .withFailureHandler(()=>{ fail++; saveOne(i+1); })
-      .saveRecord(records[i]);
-  };
-  saveOne(0);
+  // 한 번의 호출로 전부 저장 (예전에는 블록 수만큼 서버를 따로 불러서 느렸고,
+  // 저장 도중 다시 누르면 같은 기록이 여러 건 쌓였다. 서버가 중복은 걸러낸다)
+  const done=()=>{ btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-paper-plane"></i> 저장'; };
+  google.script.run
+    .withSuccessHandler(raw=>{
+      const res=typeof raw==='string'?JSON.parse(raw):raw;
+      done();
+      if(res&&res.success){
+        clearDraft();
+        let msg='✅ 활동 기록이 저장되었습니다! ('+res.saved+'건)';
+        if(res.skipped) msg+=' · 이미 있는 기록 '+res.skipped+'건은 건너뜀';
+        showToast(msg,'success');
+        resetForm(); loadPublicStats();
+      } else showToast('저장 실패: '+((res&&res.error)||''),'error');
+    })
+    .withFailureHandler(err=>{ done(); showToast('저장 실패: '+err.message,'error'); })
+    .saveRecords(records);
+}
+
+// ── 임시저장 ───────────────────────────────────────
+// 작성 중 창을 닫거나 다른 일을 봐도 내용이 남도록 브라우저에 보관한다 (서버에 저장되는 것은 아님)
+function _draftKey(){ return 'hc_draft_'+(currentUser||'guest'); }
+
+function saveDraft(manual){
+  if(!currentUser) return;
+  try{
+    const d={
+      t:Date.now(),
+      activityDate:document.getElementById('activityDate').value,
+      campus:document.getElementById('campus').value,
+      clockIn:document.getElementById('clockIn').value,
+      clockOut:document.getElementById('clockOut').value,
+      consult:collectTimeBlocks('consult'),
+      other:collectTimeBlocks('other')
+    };
+    const empty=!d.activityDate&&!d.campus&&!d.clockIn&&!d.clockOut&&!d.consult.length&&!d.other.length;
+    if(empty){ if(manual) showToast('저장할 내용이 없습니다','error'); return; }
+    localStorage.setItem(_draftKey(), JSON.stringify(d));
+    if(manual) showToast('📝 임시저장했습니다. 나중에 이어서 작성하실 수 있어요','success');
+  }catch(_){ if(manual) showToast('임시저장 실패','error'); }
+}
+
+function clearDraft(manual){
+  try{ localStorage.removeItem(_draftKey()); }catch(_){}
+  const bar=document.getElementById('draftBar'); if(bar) bar.style.display='none';
+  if(manual) showToast('임시저장 내용을 삭제했습니다','success');
+}
+
+function checkDraft(){
+  const bar=document.getElementById('draftBar');
+  if(!bar||!currentUser) return;
+  let raw=null; try{ raw=localStorage.getItem(_draftKey()); }catch(_){}
+  if(!raw){ bar.style.display='none'; return; }
+  try{
+    const d=JSON.parse(raw);
+    const el=document.getElementById('draftTime');
+    if(el&&d.t){
+      const dt=new Date(d.t);
+      el.textContent='('+(dt.getMonth()+1)+'/'+dt.getDate()+' '+String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0')+')';
+    }
+    bar.style.display='flex';
+  }catch(_){ bar.style.display='none'; }
+}
+
+// 입력할 때마다 자동으로 임시저장 (버튼을 안 눌러도 작성 내용이 날아가지 않도록)
+let _draftTimer=null;
+function bindDraftAutoSave(){
+  const panel=document.getElementById('formPanel');
+  if(!panel||panel.dataset.draftBound) return;
+  panel.dataset.draftBound='1';
+  panel.addEventListener('input',()=>{
+    clearTimeout(_draftTimer);
+    _draftTimer=setTimeout(()=>saveDraft(false),800);
+  });
+  panel.addEventListener('change',()=>{
+    clearTimeout(_draftTimer);
+    _draftTimer=setTimeout(()=>saveDraft(false),800);
+  });
+}
+
+function restoreDraft(){
+  let raw=null; try{ raw=localStorage.getItem(_draftKey()); }catch(_){}
+  if(!raw){ showToast('임시저장된 내용이 없습니다','error'); return; }
+  let d; try{ d=JSON.parse(raw); }catch(_){ showToast('불러오기 실패','error'); return; }
+  const set=(id,v)=>{ const e=document.getElementById(id); if(e&&v!=null) e.value=v; };
+  set('activityDate',d.activityDate); set('campus',d.campus);
+  set('clockIn',d.clockIn); set('clockOut',d.clockOut);
+  // 시간블록 복원 — 첫 칸은 기존 칸에, 나머지는 새로 만들어 채움
+  ['consult','other'].forEach(kind=>{
+    const blocks=(kind==='consult'?d.consult:d.other)||[];
+    const box=document.getElementById(kind==='consult'?'consultBlocks':'otherBlocks');
+    if(!box) return;
+    box.querySelectorAll('.time-row-2').forEach((r,i)=>{ if(i>0) r.remove(); });
+    blocks.forEach((b,i)=>{
+      if(i>0) addTimePair(kind);
+      const ss=box.querySelectorAll(kind==='consult'?'.consult-start':'.other-start');
+      const ee=box.querySelectorAll(kind==='consult'?'.consult-end':'.other-end');
+      if(ss[i]) ss[i].value=b.start||'';
+      if(ee[i]) ee[i].value=b.end||'';
+    });
+    calcTime(kind);
+  });
+  calcTime('work');
+  try{ syncArPlace(); }catch(_){}
+  showToast('임시저장한 내용을 불러왔습니다','success');
 }
 
 // ── 저장 전 중복 확인 ──────────────────────────────
