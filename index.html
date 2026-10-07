@@ -1777,6 +1777,24 @@ tr:hover td{background:#f0faf9}
   </div>
 </div>
 
+<!-- ── 모달: 기존 날짜에 시간 추가 ── -->
+<div class="modal-overlay" id="addTimeModal">
+  <div class="modal-box" style="max-width:520px">
+    <button class="modal-close" onclick="closeModal('addTimeModal')">✕</button>
+    <div class="modal-title">시간 추가</div>
+    <div class="modal-sub" id="addTimeSub"></div>
+    <div style="background:#f0faf9;border:1px solid #c8e6c9;border-radius:10px;padding:10px 12px;font-size:12px;color:#2e7d32;margin-bottom:0.8rem">
+      이미 저장된 날짜에 상담·활동 시간만 덧붙입니다. 출퇴근 시간은 그대로 유지됩니다.<br>
+      10:00~10:20, 10:20~10:40 처럼 <b>이어지는 상담도 여러 줄로 추가</b>하실 수 있어요.
+    </div>
+    <div id="addTimeRows"></div>
+    <button type="button" onclick="addTimeRow()" style="width:100%;height:2.3rem;background:#f0faf9;color:#2e7d32;border:1.5px dashed #a5d6a7;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;margin:0.3rem 0 0.9rem">
+      <i class="fa-solid fa-plus"></i> 줄 추가
+    </button>
+    <button class="modal-btn" id="addTimeSaveBtn" onclick="submitAddTime()">저장</button>
+  </div>
+</div>
+
 <!-- ── 모달: 컨설턴트 로그인 ── -->
 <div class="modal-overlay" id="consultantLoginModal">
   <div class="modal-box">
@@ -4517,11 +4535,15 @@ function renderMyTable(records){
     const g=byDate[d];
     const camp=(g.campus||'').replace(/'/g,'');
     const canEdit=isWithin7Days(g.submitTime);
+    // 출퇴근만 먼저 저장해둔 날에 상담/활동 시간을 나중에 덧붙일 수 있게
+    const addBtn='<button class="btn-edit" style="background:#e8f5e9;color:#1b5e20;border-color:#a5d6a7" '
+      +'onclick=\'openAddTime('+JSON.stringify(g.activityDate)+','+JSON.stringify(g.campus||'')+','
+      +JSON.stringify(g.clockIn||'')+','+JSON.stringify(g.clockOut||'')+')\'>+ 시간</button>';
     const actions=g.hasRecord
       ? (canEdit
-          ? '<button class="btn-edit" onclick=\'openEdit('+JSON.stringify(g.mainRecord)+')\'>수정</button><button class="btn-del" onclick=\'deleteDay('+JSON.stringify(g.rowIndexes)+')\'>삭제</button>'
-          : '<span style="color:#94a3b8;font-size:12px">7일 지남</span>')
-      : '<span style="color:#94a3b8;font-size:12px">보고서만</span>';
+          ? addBtn+'<button class="btn-edit" onclick=\'openEdit('+JSON.stringify(g.mainRecord)+')\'>수정</button><button class="btn-del" onclick=\'deleteDay('+JSON.stringify(g.rowIndexes)+')\'>삭제</button>'
+          : addBtn+'<span style="color:#94a3b8;font-size:12px">7일 지남</span>')
+      : addBtn+'<span style="color:#94a3b8;font-size:12px">보고서만</span>';
 
     // ── 컨설팅: 시작시간으로 시간블록↔상담보고서 매칭(순번 아님) ──
     const cBlocks=g.consults.slice();
@@ -4531,7 +4553,7 @@ function renderMyTable(records){
     cRpts.forEach(rp=>{
       const rpStart=_fmtTimeKr(rp.consultStart);
       let bi=cBlocks.findIndex((b,i)=>!cUsed.has(i)&&b.start&&b.start===rpStart);      // 1차: 시간 일치
-      if(bi<0) bi=cBlocks.findIndex((b,i)=>!cUsed.has(i));                              // 2차: 남은 블록
+      if(bi<0) bi=_pickBlockFor(rpStart,cBlocks,cUsed);                                 // 2차: 그 시간대 안의 블록만
       if(bi>=0){ cUsed.add(bi); cPairs.push({bk:cBlocks[bi], rp:rp}); }
       else cPairs.push({bk:null, rp:rp});
     });
@@ -4560,7 +4582,7 @@ function renderMyTable(records){
     oActs.forEach(ac=>{
       const acStart=_fmtTimeKr(ac.startTime);
       let bi=oBlocks.findIndex((b,i)=>!oUsed.has(i)&&b.start&&b.start===acStart);       // 1차: 시간 일치
-      if(bi<0) bi=oBlocks.findIndex((b,i)=>!oUsed.has(i));                              // 2차: 남은 블록
+      if(bi<0) bi=_pickBlockFor(acStart,oBlocks,oUsed);                                 // 2차: 그 시간대 안의 블록만
       if(bi>=0){ oUsed.add(bi); oPairs.push({bk:oBlocks[bi], ac:ac}); }
       else oPairs.push({bk:null, ac:ac});
     });
@@ -4643,6 +4665,109 @@ function openActById(rowIndex, blockRow){
     })
     .withFailureHandler(err=>showToast('불러오기 실패: '+err.message,'error'))
     .getActReports(currentUser);
+}
+
+// ── 보고서 ↔ 시간블록 짝짓기 ──
+// 예전엔 시작시각이 같은 블록이 없으면 '아무 남은 블록'을 보고서에 붙였다.
+// 그러면 09:31 보고서가 10:00~10:20 블록을 가져가 버려서, 그 블록이 화면에서 사라졌다.
+// → 보고서 시작시각이 블록 시간 안(10분 일찍 시작한 경우 포함)에 들어갈 때만 짝짓는다.
+//   못 찾으면 보고서와 블록을 각각 따로 한 줄씩 보여준다 (아무것도 숨기지 않음).
+function _hm2m(v){ const m=/^(\d{1,2}):(\d{2})/.exec(String(v||'')); return m?(+m[1])*60+(+m[2]):null; }
+function _pickBlockFor(rpStart, blocks, used){
+  const t=_hm2m(rpStart);
+  if(t==null) return -1;
+  let best=-1, bestD=1e9;
+  blocks.forEach((b,i)=>{
+    if(used.has(i)) return;
+    const s=_hm2m(b.start), e=_hm2m(b.end);
+    if(s==null) return;
+    const fits = e==null ? Math.abs(t-s)<=30 : (t>=s-10 && t<e);
+    if(!fits) return;
+    const d=Math.abs(t-s);
+    if(d<bestD){ bestD=d; best=i; }
+  });
+  return best;
+}
+
+// ── 이미 저장된 날짜에 상담/활동 시간만 덧붙이기 ──────────────
+// 출퇴근만 먼저 찍어두고 상담은 나중에 채우는 경우가 많아서, 내 기록에서 바로 추가할 수 있게 함
+let _addTimeCtx=null;
+function openAddTime(date, campus, clockIn, clockOut){
+  _addTimeCtx={date:date||'', campus:campus||'', clockIn:clockIn||'', clockOut:clockOut||''};
+  const sub=document.getElementById('addTimeSub');
+  if(sub){
+    const att=(clockIn||clockOut)?` · 출근 ${clockIn||'—'} / 퇴근 ${clockOut||'—'}`:'';
+    sub.textContent=`${date}${campus?' · '+campus:''}${att}`;
+  }
+  document.getElementById('addTimeRows').innerHTML='';
+  addTimeRow();
+  openModal('addTimeModal');
+}
+
+function addTimeRow(){
+  const box=document.getElementById('addTimeRows');
+  if(!box) return;
+  const div=document.createElement('div');
+  div.className='add-time-row';
+  div.style.cssText='display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:nowrap';
+  div.innerHTML=
+    '<select class="form-control at-kind" style="flex:0 0 32%;height:2.5rem;font-size:0.85rem">'+
+      '<option value="consult">컨설팅</option><option value="other">컨설팅 외</option></select>'+
+    '<input type="time" class="form-control at-start" style="flex:1;height:2.5rem;font-size:0.85rem">'+
+    '<span style="color:#999;flex-shrink:0">~</span>'+
+    '<input type="time" class="form-control at-end" style="flex:1;height:2.5rem;font-size:0.85rem">'+
+    '<button type="button" title="이 줄 삭제" onclick="this.closest(\'.add-time-row\').remove()" '+
+      'style="flex:0 0 2.2rem;height:2.5rem;border:1.5px solid #e0e0e0;background:#fafafa;color:#888;border-radius:8px;cursor:pointer;font-weight:700">✕</button>';
+  box.appendChild(div);
+  // 직전 줄의 종료시각을 새 줄의 시작시각으로 미리 채워 연속 상담 입력을 줄인다
+  const rows=box.querySelectorAll('.add-time-row');
+  if(rows.length>1){
+    const prev=rows[rows.length-2];
+    const prevEnd=prev.querySelector('.at-end').value;
+    if(prevEnd) div.querySelector('.at-start').value=prevEnd;
+    div.querySelector('.at-kind').value=prev.querySelector('.at-kind').value;
+  }
+}
+
+function submitAddTime(){
+  if(!_addTimeCtx||!currentUser){ showToast('다시 시도해 주세요','error'); return; }
+  const rows=[...document.querySelectorAll('#addTimeRows .add-time-row')];
+  const records=[];
+  let bad=0;
+  rows.forEach(r=>{
+    const kind=r.querySelector('.at-kind').value;
+    const s=r.querySelector('.at-start').value;
+    const e=r.querySelector('.at-end').value;
+    if(!s&&!e) return;
+    if(!s||!e){ bad++; return; }
+    const base={activityDate:_addTimeCtx.date, consultantName:currentUser, campus:_addTimeCtx.campus,
+      clockIn:_addTimeCtx.clockIn, clockOut:_addTimeCtx.clockOut,
+      clockInPhoto:'', clockOutPhoto:'', fileName:'', fileUrl:'',
+      consultStart:'', consultEnd:'', otherStart:'', otherEnd:''};
+    if(kind==='consult'){ base.consultStart=s; base.consultEnd=e; }
+    else { base.otherStart=s; base.otherEnd=e; }
+    records.push(base);
+  });
+  if(bad){ showToast('시작·종료 시각을 모두 입력해 주세요','error'); return; }
+  if(!records.length){ showToast('추가할 시간을 입력해 주세요','error'); return; }
+
+  const btn=document.getElementById('addTimeSaveBtn');
+  const orig=btn.innerHTML;
+  btn.disabled=true; btn.innerHTML='<div class="loader"></div> 저장 중...';
+  google.script.run
+    .withSuccessHandler(raw=>{
+      const res=typeof raw==='string'?JSON.parse(raw):raw;
+      btn.disabled=false; btn.innerHTML=orig;
+      if(res&&res.success){
+        let msg='✅ '+res.saved+'건 추가되었습니다';
+        if(res.skipped) msg+=' · 이미 있는 시간 '+res.skipped+'건은 건너뜀';
+        showToast(msg,'success');
+        closeModal('addTimeModal');
+        refreshMyPanel(); loadPublicStats();
+      } else showToast('추가 실패: '+((res&&res.error)||''),'error');
+    })
+    .withFailureHandler(err=>{ btn.disabled=false; btn.innerHTML=orig; showToast('추가 실패: '+err.message,'error'); })
+    .saveRecords(records);
 }
 
 // 활동일자 한 줄 전체 삭제 (그 날짜의 모든 출력결과 행) — 행 밀림 방지 위해 큰 rowIndex부터
@@ -4992,6 +5117,11 @@ async function doUpdateRecord(){
   let clockInPhoto='', clockOutPhoto='';
   if(editPhotoFiles.clockIn)  clockInPhoto =await uploadPhoto(editPhotoFiles.clockIn,'clockIn');
   if(editPhotoFiles.clockOut) clockOutPhoto=await uploadPhoto(editPhotoFiles.clockOut,'clockOut');
+  if((editPhotoFiles.clockIn&&!clockInPhoto)||(editPhotoFiles.clockOut&&!clockOutPhoto)){
+    btn.disabled=false; btn.innerHTML=origHtml;
+    showToast('사진 업로드에 실패했습니다. 수정 내용은 저장하지 않았으니 다시 시도해 주세요','error');
+    return;
+  }
   // 출퇴근 시간 + (새로 고른 경우만) 사진 전송 → 컨설팅/컨설팅외 시간은 서버에서 기존 값 유지
   const data={
     consultantName:currentUser,
@@ -5419,8 +5549,8 @@ async function submitForm(){
   if(!window.__forceSubmitDup){
     const items=[];
     if(clockInVal||clockOutVal) items.push({category:'clock', start:clockInVal||clockOutVal});
-    consultBlocks.forEach(b=>{ if(b.start) items.push({category:'consult', start:b.start}); });
-    otherBlocks.forEach(b=>{ if(b.start) items.push({category:'other', start:b.start}); });
+    consultBlocks.forEach(b=>{ if(b.start) items.push({category:'consult', start:b.start, end:b.end}); });
+    otherBlocks.forEach(b=>{ if(b.start) items.push({category:'other', start:b.start, end:b.end}); });
     if(items.length){
       const origHtml=btn.innerHTML;
       btn.disabled=true; btn.innerHTML='<div class="loader"></div> 확인 중...';
@@ -5444,6 +5574,12 @@ async function submitForm(){
   }catch(e){
     btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-paper-plane"></i> 저장';
     showToast('사진 업로드 실패: '+(e&&e.message||''),'error');
+    return;
+  }
+  // 사진을 골랐는데 업로드가 실패하면 예전엔 '사진 없이' 조용히 저장됐다 → 저장을 멈추고 알린다
+  if((photoFiles.clockIn&&!clockInPhoto)||(photoFiles.clockOut&&!clockOutPhoto)){
+    btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-paper-plane"></i> 저장';
+    showToast('사진 업로드에 실패했습니다. 기록은 저장하지 않았으니 다시 [저장]을 눌러주세요','error');
     return;
   }
 
@@ -5478,8 +5614,11 @@ async function submitForm(){
       done();
       if(res&&res.success){
         clearDraft();
-        let msg='✅ 활동 기록이 저장되었습니다! ('+res.saved+'건)';
-        if(res.skipped) msg+=' · 이미 있는 기록 '+res.skipped+'건은 건너뜀';
+        let msg;
+        if(res.saved) msg='✅ 활동 기록이 저장되었습니다! ('+res.saved+'건)';
+        else if(res.photoFilled) msg='✅ 같은 시간 기록이 이미 있어, 사진만 기존 기록에 반영했습니다';
+        else msg='같은 시간 기록이 이미 있어 새로 저장하지 않았습니다';
+        if(res.saved&&res.skipped) msg+=' · 이미 있는 시간 '+res.skipped+'건은 건너뜀';
         showToast(msg,'success');
         resetForm(); loadPublicStats();
       } else showToast('저장 실패: '+((res&&res.error)||''),'error');
